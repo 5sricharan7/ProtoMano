@@ -1,0 +1,15 @@
+import { Eye, Fingerprint, HeartHandshake, LockKeyhole, ShieldAlert, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+
+const commitments: { icon: LucideIcon; title: string; copy: string }[] = [
+  { icon: HeartHandshake, title: "Welfare-only purpose", copy: "Signals support voluntary welfare check-ins and human follow-up. They are not clinical labels, performance scores or disciplinary evidence." },
+  { icon: Users, title: "Human in the loop", copy: "No intervention is triggered automatically. A trained welfare officer reviews context, consent and the person’s voice before any action." },
+  { icon: LockKeyhole, title: "Role-based privacy", copy: "Personnel and welfare officer perspectives separate personal context from anonymized organizational insight." },
+  { icon: Eye, title: "Explainability", copy: "The real model response includes calibrated class probabilities and LightGBM contribution values so the officer can ask why." },
+  { icon: ShieldAlert, title: "Known limitations", copy: "The uploaded model was trained on synthetic data and requires real-world revalidation, ethics review and drift monitoring before deployment." },
+  { icon: Fingerprint, title: "No automated harm", copy: "No automated message, escalation, diagnosis or punitive decision is made from a risk band." },
+];
+
+export default function Ethics() { return <div className="page-frame ethics-page" data-testid="ethics-screen"><div className="ethics-hero"><div><span className="eyebrow-label"><span className="step-index">GUARDRAILS</span> Privacy & ethics</span><h1>Care is the<br /><em>operating principle.</em></h1><p className="page-lede">Manobal-AI is designed to make a welfare conversation easier to begin—not to make a decision about a person.</p></div><div className="ethics-seal"><ShieldAlert size={25} /><span>HUMAN<br />REVIEW<br />REQUIRED</span></div></div><div className="commitment-grid">{commitments.map(({ icon: Icon, title, copy }, index) => <Card className="commitment-card" key={title} data-testid={`ethics-commitment-${index + 1}`}><div className="commitment-icon"><Icon size={18} /></div><span className="commitment-number">0{index + 1}</span><h2>{title}</h2><p>{copy}</p></Card>)}</div><Card className="limitations-card"><div><span className="eyebrow-label">Read before use</span><h2>A model signal is one piece of context.</h2></div><div><p>For the SIH prototype, all records are synthetic. The underlying model card explicitly cautions against diagnosis, disciplinary use and operational deployment without revalidation on properly authorized, ethics-board-approved real data.</p><Link to="/analysis" className="text-link" data-testid="ethics-model-path-link">See the model path</Link></div></Card></div>; }

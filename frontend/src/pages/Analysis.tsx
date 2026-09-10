@@ -1,0 +1,18 @@
+import { ArrowDown, ArrowRight, BrainCircuit, CheckCircle2, Database, FileText, HeartHandshake, Sparkles, WandSparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+
+const stages = [
+  { icon: Database, label: "INPUT DATA", title: "44 ordered welfare signals", copy: "Duty, rest, leave, self-report and biometric trend features from the personnel record." },
+  { icon: WandSparkles, label: "PREPROCESSING", title: "Shared runtime pipeline", copy: "The uploaded preprocessing artifact converts the ordered profile into the model matrix." },
+  { icon: BrainCircuit, label: "LIGHTGBM", title: "Calibrated risk engine", copy: "The serialized LightGBM classifier produces a real multiclass probability distribution." },
+  { icon: Sparkles, label: "RISK PROBABILITY", title: "Low · Moderate · High", copy: "The highest calibrated class becomes the risk band shown to the officer." },
+  { icon: CheckCircle2, label: "DATA TRUST", title: "Evidence quality · 0–100", copy: "A deterministic heuristic scores completeness, recency, source reliability and consistency — separate from model confidence." },
+  { icon: BrainCircuit, label: "RISK + TRUST FUSION", title: "Review · Monitor · Verify", copy: "Low trust triggers explicit abstention and data verification; it is never silently treated as low risk." },
+  { icon: FileText, label: "EXPLANATION", title: "Why this signal?", copy: "LightGBM contribution values surface the factors that moved this prediction." },
+  { icon: HeartHandshake, label: "WELFARE RECOMMENDATION", title: "Human support next", copy: "Auditable platform guidance routes the signal toward context and conversation." },
+];
+
+export default function Analysis() { return <div className="page-frame analysis-page" data-testid="analysis-screen"><div className="page-title-row"><div><span className="eyebrow-label"><span className="step-index">SYSTEM VIEW</span> AI analysis</span><h1>Inside the <em>signal.</em></h1><p className="page-lede">A transparent view of how Manobal-AI moves from a personnel profile to a welfare conversation.</p></div><Link to="/officer" className="outlined-link" data-testid="analysis-back-command-link">Back to command <ArrowRight size={14} /></Link></div><div className="analysis-disclaimer"><CheckCircle2 size={16} /><span>REAL MODEL PIPELINE · This interface visualizes the working backend path. It does not simulate or replace inference.</span></div><div className="pipeline-grid">{stages.map((stage, index) => { const Icon = stage.icon; return <div className="pipeline-stage-wrap" key={stage.label}><Card className={`pipeline-stage pipeline-stage-${index + 1}`} data-testid={`pipeline-stage-${index + 1}`}><div className="pipeline-index">0{index + 1}</div><div className="pipeline-icon"><Icon size={20} /></div><span>{stage.label}</span><h2>{stage.title}</h2><p>{stage.copy}</p></Card>{index < stages.length - 1 && <ArrowDown className="pipeline-arrow" size={17} />}</div>; })}</div><Card className="analysis-footer-card"><div className="analysis-footer-icon"><ShieldCheckIcon /></div><div><span className="eyebrow-label">What remains human</span><h2>A probability is not a verdict.</h2><p>The platform can identify a change in signal. A welfare officer brings context, consent and care to what happens next.</p></div><Link to="/interventions" className="primary-cta compact-cta" data-testid="analysis-open-interventions-link">Open intervention desk <ArrowRight size={15} /></Link></Card></div>; }
+
+function ShieldCheckIcon() { return <CheckCircle2 size={21} />; }
