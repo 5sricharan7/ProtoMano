@@ -36,7 +36,7 @@ All named personnel and organizational values are **synthetic** and labeled DEMO
 1. Landing page (`/`) introduces Welfare Signal and links into the demo.
 2. Demo entry (`/login`) chooses **Personnel** or **Welfare Officer**, then seeds demo data (no credentials).
 3. Welfare officer command (`/officer`) shows who needs attention from the latest stored assessments.
-4. Personnel profile (`/personnel/:id`) runs **Run AI analysis** → `POST /api/predict` with the 44-feature snapshot.
+4. Personnel profile (`/personnel/:id`) runs **Run AI analysis** → `POST /api/predict` with the personnel's raw weekly records (`raw_records`). The server derives the 44 features via the canonical feature-engineering pipeline; pre-engineered client-supplied vectors are rejected.
 5. The result includes calibrated class probabilities, LightGBM feature contributions (when available), a data-trust heuristic, risk+trust fusion (`REVIEW_RECOMMENDED` / `MONITOR` / `VERIFY_DATA`), history-derived trajectory and “What Changed”, and rule-based welfare recommendations.
 6. Intervention desk (`/interventions`) records a human review in MongoDB.
 7. Supporting screens: personnel self-view (`/personnel`), static pipeline explainer (`/analysis`), cohort insights (`/insights`), privacy copy (`/ethics`).

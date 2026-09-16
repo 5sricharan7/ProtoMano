@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import __main__
 import json
 import os
 import warnings
@@ -14,17 +13,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-
-def preprocess_for_inference(features: pd.DataFrame) -> np.ndarray:
-    """Runtime compatibility hook for the uploaded FunctionTransformer.
-
-    The 273-byte preprocessing pickle stores a reference to this function as
-    ``__main__.preprocess_for_inference`` but does not contain its source. The
-    model metadata documents an already-engineered 44-column numeric matrix, so
-    this adapter preserves the supplied order and removes dataframe labels.
-    """
-
-    return features.to_numpy(dtype=float) if hasattr(features, "to_numpy") else np.asarray(features, dtype=float)
+from lib.feature_engineering import features_for_latest_week, records_to_frame
 
 
 class ModelArtifactError(RuntimeError):
@@ -68,7 +57,6 @@ class InferenceEngine:
                 warnings.simplefilter("ignore")
                 self.risk_model = joblib.load(self.artifact_dir / "risk_model.pkl")
                 self.baseline_model = joblib.load(self.artifact_dir / "baseline_model.pkl")
-                setattr(__main__, "preprocess_for_inference", preprocess_for_inference)
                 self.preprocessing_pipeline = joblib.load(self.artifact_dir / "preprocessing_pipeline.pkl")
             if len(self.feature_names) != 44 or getattr(self.risk_model, "n_features_in_", 0) != 44:
                 raise ModelArtifactError("Artifact feature metadata and model input width do not match")
@@ -87,8 +75,8 @@ class InferenceEngine:
             "band_order": self.bands,
             "supports_probability": self.risk_model is not None and hasattr(self.risk_model, "predict_proba"),
             "supports_contributions": self.risk_model is not None,
-            "preprocessing_status": "runtime_compatibility_adapter",
-            "preprocessing_note": "The uploaded FunctionTransformer references __main__.preprocess_for_inference but does not embed its source. Manobal-AI preserves the documented 44-feature order and passes a numeric matrix to the serialized model.",
+            "preprocessing_status": "production_ready",
+            "preprocessing_note": "The FunctionTransformer references lib.preprocessing.preprocess_for_inference, a stable importable module. /api/predict now takes raw weekly records ('raw_records') and derives the 44 features server-side via lib.feature_engineering; client-supplied engineered vectors are rejected.",
             "limitations": [
                 self.metadata.get("notes", "Synthetic training data; revalidation is required before real deployment."),
                 "The model is decision support for voluntary welfare check-ins and human follow-up, never a diagnosis or disciplinary signal.",
@@ -119,11 +107,46 @@ class InferenceEngine:
                 for index in range(min(len(self.bands), len(probabilities)))
             ],
             "prediction_confidence": float(np.max(probabilities)),
-            "confidence_basis": "Maximum calibrated class probability from risk_model.pkl",
+            "confidence_basis": "Maximum calibrated class probability from the deployed risk model",
             "top_contributing_factors": contributions,
             "model_version": self.metadata.get("model_version", "unknown"),
             "feature_version": self.metadata.get("feature_version", "unknown"),
         }
+
+    def predict_from_raw_records(
+        self, raw_records: list[dict] | pd.DataFrame, personnel_id: str | None = None
+    ) -> tuple[dict[str, Any], dict[str, float]]:
+        """Run inference from raw weekly records through the canonical pipeline.
+
+        The 44-feature vector is engineered server-side by
+        ``lib.feature_engineering`` — the frontend is never trusted to submit
+        an engineered feature vector. Only records for a single person are
+        accepted; ``personnel_id`` (when supplied) must match, otherwise the
+        records must all belong to one person. The latest (maximum) week's
+        engineered row is the prediction target.
+
+        Returns:
+            ``(result, ordered_features)`` where ``result`` is the exact dict
+            produced by :meth:`predict` and ``ordered_features`` maps the 44
+            model feature names (metadata order) to the values the model saw.
+        """
+        if self.load_error or self.risk_model is None or self.preprocessing_pipeline is None:
+            raise ModelArtifactError(getattr(self, "load_error", None) or "Model artifacts are not loaded")
+        frame = records_to_frame(raw_records)
+        persons = sorted(set(frame["personnel_id"].astype(str)))
+        if personnel_id is not None:
+            frame = frame[frame["personnel_id"].astype(str) == str(personnel_id)].reset_index(drop=True)
+            if frame.empty:
+                raise ValueError("raw_records do not contain the supplied personnel_id")
+        elif len(persons) != 1:
+            raise ValueError("raw_records must belong to a single personnel_id when personnel_id is omitted")
+
+        engineered = features_for_latest_week(frame)
+        if len(engineered) != 1:
+            raise ValueError("feature engineering did not produce exactly one latest-week row")
+        row = engineered.iloc[0]
+        ordered_features = {name: float(row[name]) for name in self.feature_names}
+        return self.predict(ordered_features), ordered_features
 
     def _contributions(self, processed: Any, predicted_index: int) -> list[dict[str, Any]]:
         try:

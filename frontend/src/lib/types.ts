@@ -112,7 +112,26 @@ export interface PersonnelCreate {
 
 export interface PredictRequest {
   personnel_id?: string | null;
-  features: Record<string, number>;
+  raw_records: RawWelfareRecord[];
+}
+
+export interface RawWelfareRecord {
+  personnel_id: string;
+  week: number;
+  years_of_service: number;
+  hardship_posting_flag: number | boolean;
+  transfer_count_24mo: number;
+  years_in_current_posting: number;
+  weekly_duty_hours: number | null;
+  night_shift_ratio: number | null;
+  overtime_hours: number | null;
+  days_since_last_rest: number | null;
+  days_since_last_leave: number | null;
+  leave_balance: number | null;
+  wellness_score_self_report: number | null;
+  sleep_quality_score_self_report: number | null;
+  resting_hr_trend_biometric: number | null;
+  sleep_hours_biometric: number | null;
 }
 
 export interface RecordResponse {
@@ -160,6 +179,7 @@ export interface DemoPersonnel {
   posting: string;
   is_demo_data: boolean;
   features: Record<string, number>;
+  raw_records: RawWelfareRecord[];
   summary: Record<string, string>;
   history: DemoHistory[];
 }

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 RiskBand = Literal["Low", "Moderate", "High"]
@@ -44,8 +44,18 @@ class Intervention(InterventionCreate):
 
 
 class PredictRequest(BaseModel):
+    """Production inference input: raw weekly records only.
+
+    ``features`` was removed as a request field. Client-supplied engineered
+    44-feature vectors are rejected at the schema boundary (``extra="forbid"``)
+    and the 44 features are always derived server-side by
+    ``lib.feature_engineering``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     personnel_id: str | None = Field(default=None, max_length=120)
-    features: dict[str, float]
+    raw_records: list[dict[str, Any]]
 
 
 class Contribution(BaseModel):
@@ -159,6 +169,7 @@ class DemoPersonnel(BaseModel):
     posting: str
     is_demo_data: bool
     features: dict[str, float]
+    raw_records: list[dict[str, Any]]
     summary: dict[str, Any]
     history: list[DemoHistory]
 
@@ -166,3 +177,66 @@ class DemoPersonnel(BaseModel):
 class DemoSeedResponse(BaseModel):
     seeded_count: int
     message: str
+
+
+# --- Task 3C: Data-isolation + privacy response models ---
+
+
+class OfficerAssessment(BaseModel):
+    """WELFARE_OFFICER — Minimized assessment record.
+
+    Strips internal/technical fields (features, date_key, is_latest,
+    confidence_basis) that are not needed by the officer dashboard.
+    """
+
+    id: str
+    personnel_id: str
+    assessed_at: datetime
+    predicted_band: RiskBand
+    risk_probability: float
+    prediction_confidence: float
+    class_probabilities: list[ClassProbability]
+    top_contributing_factors: list[Contribution]
+    data_trust: DataTrust
+    decision_support: DecisionSupport
+    model_version: str
+    feature_version: str
+
+
+class PersonnelPredictionResponse(BaseModel):
+    """PERSONNEL — Safe prediction envelope.
+
+    Returned after a PERSONNEL /predict call.  Contains only submission
+    confirmation metadata; no risk band, probability, SHAP, what-changed,
+    recommendations, trajectory, trust or decision-support fields.
+    """
+
+    assessment_id: str
+    personnel_id: str
+    assessed_at: datetime
+    status: Literal["recorded"]
+    message: str
+
+
+class PersonnelRecord(BaseModel):
+    """PERSONNEL — Safe self-service record envelope.
+
+    Read-only view of a record the authenticated personnel submitted.
+    Scoped server-side; no client-supplied personnel_id accepted.
+    """
+
+    id: str
+    collection: str
+    created_at: datetime
+    payload: dict[str, Any]
+
+
+class PersonnelAssessment(BaseModel):
+    """PERSONNEL — Safe self-service assessment timestamp.
+
+    Contains only the assessment identity and when it was recorded.
+    No risk intelligence, probability, SHAP, trust or decision data.
+    """
+
+    assessment_id: str
+    assessed_at: datetime

@@ -19,7 +19,7 @@ def test_predict_returns_model_backed_explanation(client: httpx.Client):
 
     resp = client.post(
         "/predict",
-        json={"personnel_id": anita["id"], "features": anita["features"]},
+        json={"personnel_id": anita["id"], "raw_records": anita["raw_records"]},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -50,4 +50,4 @@ def test_model_info_discloses_version_and_adapter(client: httpx.Client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["model_version"] == "0.2.0-sih-final"
-    assert body["preprocessing_status"] == "runtime_compatibility_adapter"
+    assert body["preprocessing_status"] == "production_ready"

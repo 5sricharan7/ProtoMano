@@ -20,12 +20,14 @@ logger = logging.getLogger(__name__)
 INDEXES: dict[str, list[IndexModel]] = {
     "status_checks": [IndexModel([("timestamp", DESCENDING)], name="timestamp_desc")],
     "personnel": [IndexModel([("id", ASCENDING)], name="id_unique", unique=True), IndexModel([("created_at", DESCENDING)], name="created_desc")],
+    "users": [IndexModel([("id", ASCENDING)], name="id_unique", unique=True), IndexModel([("username", ASCENDING)], name="username_unique", unique=True)],
     "risk_assessments": [IndexModel([("personnel_id", ASCENDING), ("assessed_at", DESCENDING)], name="personnel_assessed"), IndexModel([("date_key", ASCENDING)], name="date_key")],
     "interventions": [IndexModel([("status", ASCENDING), ("created_at", DESCENDING)], name="status_created")],
     "wellness_logs": [IndexModel([("personnel_id", ASCENDING), ("created_at", DESCENDING)], name="personnel_created")],
     "workload_records": [IndexModel([("personnel_id", ASCENDING), ("created_at", DESCENDING)], name="personnel_created")],
     "deployment_history": [IndexModel([("personnel_id", ASCENDING), ("created_at", DESCENDING)], name="personnel_created")],
     "leave_requests": [IndexModel([("personnel_id", ASCENDING), ("created_at", DESCENDING)], name="personnel_created")],
+    "audit_logs": [IndexModel([("timestamp", DESCENDING)], name="timestamp_desc"), IndexModel([("event_type", ASCENDING)], name="event_type"), IndexModel([("user_id", ASCENDING)], name="user_id")],
 }
 
 

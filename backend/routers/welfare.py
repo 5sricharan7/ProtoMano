@@ -1,11 +1,19 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Union
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+import pandas as pd
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from lib.audit_service import log_denial
 from lib.db import db
+from lib.feature_engineering import (
+    RAW_NUMERIC_FEATURES,
+    STATIC_FEATURES,
+    records_to_frame,
+)
 from lib.inference import InferenceEngine, ModelArtifactError, utc_now
+from lib.rbac_deps import require_any_role, require_personnel, require_welfare_officer
 from models.welfare import (
     DataTrust,
     DecisionSupport,
@@ -15,9 +23,13 @@ from models.welfare import (
     DemoPersonnel,
     DemoSeedResponse,
     ModelInfo,
+    OfficerAssessment,
     Overview,
     Personnel,
+    PersonnelAssessment,
     PersonnelCreate,
+    PersonnelPredictionResponse,
+    PersonnelRecord,
     PredictRequest,
     PredictionResponse,
     RecordResponse,
@@ -27,6 +39,7 @@ from models.welfare import (
 
 router = APIRouter()
 TRUST_ABSTENTION_THRESHOLD = 60.0
+PERSONNEL_RECORD_COLLECTIONS = {"wellness_logs", "workload_records", "deployment_history", "leave_requests"}
 engine = InferenceEngine()
 try:
     engine.load()
@@ -45,18 +58,14 @@ def _ensure_engine_ready() -> None:
         )
 
 
-def _validate_features(features: dict[str, float]) -> None:
-    expected = set(engine.feature_names)
-    supplied = set(features)
-    if supplied != expected:
-        missing = sorted(expected - supplied)
-        extra = sorted(supplied - expected)
-        raise HTTPException(status_code=422, detail={"missing_features": missing, "extra_features": extra})
-    for name, value in features.items():
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
-            raise HTTPException(status_code=422, detail=f"Feature '{name}' must be numeric")
-        if value != value or value in (float("inf"), float("-inf")):
-            raise HTTPException(status_code=422, detail=f"Feature '{name}' must be finite")
+def _validate_raw_records(raw_records: list[dict[str, Any]]) -> pd.DataFrame:
+    """Strictly control the inference entry point: build and validate a raw
+    weekly record frame, rejecting pre-engineered or unknown columns. The 44
+    features are always derived server-side by the canonical pipeline."""
+    try:
+        return records_to_frame(raw_records)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _recommendations(band: str) -> list[str]:
@@ -186,12 +195,19 @@ def _decision_support(band: str, trust: DataTrust, direction: str) -> DecisionSu
 
 @router.get("/model-info", response_model=ModelInfo)
 async def model_info() -> ModelInfo:
+    """PUBLIC — Model metadata and status."""
     _ensure_engine_ready()
     return ModelInfo(**engine.info())
 
 
 @router.get("/overview", response_model=Overview)
-async def overview() -> Overview:
+async def overview(current_user: dict = Depends(require_any_role("WELFARE_OFFICER", "COMMANDER"))) -> Overview:
+    """AGGREGATE ONLY — Operational overview (counts, no individual data).
+
+    WELFARE_OFFICER and COMMANDER. COMMANDER is restricted to this aggregate
+    view; every individual personnel/risk/wellness endpoint stays blocked
+    (a Commander dashboard is a Phase 2 deliverable).
+    """
     today = datetime.now(timezone.utc).date().isoformat()
     personnel_count = await db.personnel.count_documents({})
     assessments_today = await db.risk_assessments.count_documents({"date_key": today})
@@ -206,34 +222,106 @@ async def overview() -> Overview:
 
 
 @router.get("/personnel", response_model=list[Personnel])
-async def list_personnel() -> list[Personnel]:
+async def list_personnel(current_user: dict = Depends(require_welfare_officer)) -> list[Personnel]:
+    """WELFARE_OFFICER — List all personnel records.
+
+    COMMANDER is blocked from individual personnel data (Phase 2 Commander
+    aggregate dashboard only).
+    """
     docs = await db.personnel.find().sort("created_at", -1).to_list(100)
     return [Personnel(**doc) for doc in docs]
 
 
 @router.post("/personnel", response_model=Personnel)
-async def create_personnel(payload: PersonnelCreate) -> Personnel:
+async def create_personnel(payload: PersonnelCreate, current_user: dict = Depends(require_welfare_officer)) -> Personnel:
+    """WELFARE_OFFICER — Create personnel record."""
     doc = payload.model_dump()
     doc.update({"id": str(uuid4()), "created_at": utc_now()})
     await db.personnel.insert_one(doc)
     return Personnel(**doc)
 
 
-@router.get("/assessments", response_model=list[dict[str, Any]])
-async def list_assessments() -> list[dict[str, Any]]:
+@router.get("/assessments", response_model=list[OfficerAssessment])
+async def list_assessments(current_user: dict = Depends(require_welfare_officer)) -> list[OfficerAssessment]:
+    """WELFARE_OFFICER — List individual risk assessments (minimized).
+
+    COMMANDER is blocked from individual risk data.  Internal/technical
+    fields (features vector, date_key, is_latest, confidence_basis) are
+    stripped so the response never exposes the 44-feature vector or the
+    model artifact filename.
+    """
     docs = await db.risk_assessments.find().sort("assessed_at", -1).to_list(100)
+    assessments: list[OfficerAssessment] = []
     for doc in docs:
-        doc.pop("_id", None)
-    return docs
+        assessments.append(
+            OfficerAssessment(
+                id=doc["id"],
+                personnel_id=doc["personnel_id"],
+                assessed_at=doc["assessed_at"],
+                predicted_band=doc["predicted_band"],
+                risk_probability=float(doc["risk_probability"]),
+                prediction_confidence=float(doc["prediction_confidence"]),
+                class_probabilities=[
+                    {"band": cp["band"], "probability": float(cp["probability"])}
+                    for cp in doc.get("class_probabilities", [])
+                ],
+                top_contributing_factors=[
+                    {
+                        "feature": c["feature"],
+                        "contribution": float(c["contribution"]),
+                        "direction": c["direction"],
+                    }
+                    for c in doc.get("top_contributing_factors", [])
+                ],
+                data_trust=DataTrust(**doc["data_trust"]),
+                decision_support=DecisionSupport(**doc["decision_support"]),
+                model_version=doc.get("model_version", ""),
+                feature_version=doc.get("feature_version", ""),
+            )
+        )
+    return assessments
 
 
-@router.post("/predict", response_model=PredictionResponse)
-async def predict(payload: PredictRequest) -> PredictionResponse:
+@router.post("/predict", response_model=Union[PredictionResponse, PersonnelPredictionResponse])
+async def predict(payload: PredictRequest, request: Request, current_user: dict = Depends(require_any_role("PERSONNEL", "WELFARE_OFFICER"))) -> Union[PredictionResponse, PersonnelPredictionResponse]:
+    """PERSONNEL (own records only) / WELFARE_OFFICER (any personnel) — Run risk prediction.
+
+    Response is role-aware (Task 3C data isolation):
+    - WELFARE_OFFICER receives the full PredictionResponse (risk band, SHAP,
+      what-changed, recommendations) with the model filename sanitized.
+    - PERSONNEL receives only PersonnelPredictionResponse — submission
+      confirmation metadata with NO risk intelligence.
+    The same inference always runs and the full assessment is stored server-side.
+
+    COMMANDER is blocked: individual risk data is inaccessible to the Command
+    role in this phase.
+    """
+    # Enforce personnel ownership: PERSONNEL can only predict for themselves.
+    # The authenticated user identity binds the personnel_id scope; a PERSONNEL
+    # record may never reference another user's identifier (IDOR guard).  The
+    # attempt is audited as an idor_denial before the 403 is raised.
+    target_personnel_id = payload.personnel_id
+    if current_user["role"] == "PERSONNEL":
+        if target_personnel_id != current_user["user_id"]:
+            await log_denial(
+                "idor_denial",
+                request,
+                current_user,
+                reason="personnel_scope_violation",
+                details={"target_personnel_id": target_personnel_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Personnel can only request risk prediction for themselves",
+            )
     _ensure_engine_ready()
-    features = payload.features
-    _validate_features(features)
+
+    # Production boundary: only raw weekly records are accepted. Client-supplied
+    # engineered 44-feature vectors are already rejected by PredictRequest
+    # (extra="forbid"); the 44 features are derived server-side here.
+    records = _validate_raw_records(payload.raw_records)
     try:
-        result = engine.predict(features)
+        result, features = engine.predict_from_raw_records(records, personnel_id=payload.personnel_id)
     except ModelArtifactError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
@@ -289,6 +377,20 @@ async def predict(payload: PredictRequest) -> PredictionResponse:
     if personnel_id:
         await db.risk_assessments.update_many({"personnel_id": personnel_id, "is_latest": True}, {"$set": {"is_latest": False}})
     await db.risk_assessments.insert_one(record)
+
+    # Task 3C: role-aware response boundary.
+    # PERSONNEL must never receive risk intelligence (band, probability, SHAP,
+    # what-changed, recommendations, trust, decision, trajectory).
+    if current_user["role"] == "PERSONNEL":
+        return PersonnelPredictionResponse(
+            assessment_id=assessment_id,
+            personnel_id=personnel_id,
+            assessed_at=assessed_at,
+            status="recorded",
+            message="Your voluntary welfare information has been received and will be reviewed privately by a welfare officer.",
+        )
+
+    # WELFARE_OFFICER: full result with safe metadata.
     return PredictionResponse(
         assessment_id=assessment_id,
         personnel_id=personnel_id,
@@ -310,17 +412,47 @@ async def predict(payload: PredictRequest) -> PredictionResponse:
 
 
 @router.get("/interventions", response_model=list[Intervention])
-async def list_interventions() -> list[Intervention]:
+async def list_interventions(current_user: dict = Depends(require_welfare_officer)) -> list[Intervention]:
+    """WELFARE_OFFICER — List intervention records.
+
+    COMMANDER is blocked from individual intervention data.
+    """
     docs = await db.interventions.find().sort("created_at", -1).to_list(100)
     return [Intervention(**doc) for doc in docs]
 
 
 @router.post("/interventions", response_model=Intervention)
-async def create_intervention(payload: InterventionCreate) -> Intervention:
+async def create_intervention(payload: InterventionCreate, current_user: dict = Depends(require_welfare_officer)) -> Intervention:
+    """WELFARE_OFFICER — Create intervention record."""
     doc = payload.model_dump()
     doc.update({"id": str(uuid4()), "created_at": utc_now()})
     await db.interventions.insert_one(doc)
     return Intervention(**doc)
+
+
+def _demo_raw_records(engineered: dict[str, float], personnel_id: str) -> list[dict[str, Any]]:
+    """Construct a 4-week raw-record ladder whose engineered latest week
+    reproduces ``engineered`` (the demo profile's displayed feature vector).
+
+    This gives the frontend raw weekly records to submit, so the live analysis
+    path exercises the same causal pipeline as production — the 44-feature
+    vector is derived server-side, never trusted from the browser.
+    """
+    static = {name: float(engineered[name]) for name in STATIC_FEATURES}
+    week_values: dict[str, list[float]] = {}
+    for f in RAW_NUMERIC_FEATURES:
+        r3 = float(engineered[f])
+        delta = float(engineered[f"{f}__delta_wow"])
+        roll4 = float(engineered[f"{f}__roll4_mean"])
+        r2 = r3 - delta
+        pair = (4.0 * roll4 - r2 - r3) / 2.0
+        week_values[f] = [pair, pair, r2, r3]
+    records = []
+    for week in range(4):
+        record = {"personnel_id": personnel_id, "week": week, **static}
+        record.update({f: week_values[f][week] for f in RAW_NUMERIC_FEATURES})
+        records.append(record)
+    return records
 
 
 def _demo_profiles() -> list[dict[str, Any]]:
@@ -378,6 +510,7 @@ def _demo_profiles() -> list[dict[str, Any]]:
             "unit": "Northern Support Group",
             "posting": "Ladakh sector",
             "features": signal_profile(8),
+            "raw_records": _demo_raw_records(signal_profile(8), "demo-ms-042"),
             "summary": {"wellness": "3.5 / 10 · trending down", "workload": "66 duty hours · elevated", "leave": "8 days available", "deployment": "Hardship posting"},
         },
         {
@@ -388,6 +521,7 @@ def _demo_profiles() -> list[dict[str, Any]]:
             "unit": "Western Logistics Command",
             "posting": "Jaisalmer field base",
             "features": signal_profile(2),
+            "raw_records": _demo_raw_records(signal_profile(2), "demo-ms-017"),
             "summary": {"wellness": "8.0 / 10 · stable", "workload": "45 duty hours · stable", "leave": "32 days available", "deployment": "Routine posting"},
         },
         {
@@ -398,6 +532,7 @@ def _demo_profiles() -> list[dict[str, Any]]:
             "unit": "Central Communications Unit",
             "posting": "Srinagar operations hub",
             "features": signal_profile(6),
+            "raw_records": _demo_raw_records(signal_profile(6), "demo-ms-088"),
             "summary": {"wellness": "5.0 / 10 · mixed signals", "workload": "59 duty hours · rising", "leave": "16 days available", "deployment": "Operational posting"},
         },
     ]
@@ -418,7 +553,12 @@ def _demo_history(features: dict[str, float], profile_index: int) -> list[dict[s
 
 
 @router.post("/demo/seed", response_model=DemoSeedResponse)
-async def seed_demo_data() -> DemoSeedResponse:
+async def seed_demo_data(current_user: dict = Depends(require_welfare_officer)) -> DemoSeedResponse:
+    """WELFARE_OFFICER — Seed demo personnel + assessment history.
+
+    Writing is restricted: this endpoint mutates shared collections and is not
+    available to PERSONNEL or COMMANDER.
+    """
     _ensure_engine_ready()
     profiles = _demo_profiles()
     for profile_index, profile in enumerate(profiles):
@@ -447,7 +587,13 @@ async def seed_demo_data() -> DemoSeedResponse:
 
 
 @router.get("/demo/personnel", response_model=list[DemoPersonnel])
-async def list_demo_personnel() -> list[DemoPersonnel]:
+async def list_demo_personnel(current_user: dict = Depends(require_welfare_officer)) -> list[DemoPersonnel]:
+    """WELFARE_OFFICER — List demo personnel (synthetic profiles + risk history).
+
+    Task 3C: restricted from PERSONNEL/COMMANDER.  The demo response includes
+    the full 44-feature vectors and risk-history bands which are internal
+    welfare-officer decision-support material.
+    """
     _ensure_engine_ready()
     result: list[DemoPersonnel] = []
     for profile in _demo_profiles():
@@ -466,14 +612,113 @@ async def list_demo_personnel() -> list[DemoPersonnel]:
     return result
 
 
-@router.post("/{collection}", response_model=RecordResponse)
-async def create_record(collection: str, payload: dict[str, Any]) -> RecordResponse:
-    allowed = {"wellness_logs", "workload_records", "deployment_history", "leave_requests"}
-    if collection not in allowed:
-        raise HTTPException(status_code=404, detail="Unknown welfare record collection")
+async def _create_record(collection: str, payload: dict[str, Any], request: Request, current_user: dict) -> RecordResponse:
+    """Shared record-creation logic for the four welfare record collections.
+
+    Enforces personnel ownership for the PERSONNEL role (IDOR guard, audited as
+    an idor_denial). COMMANDER is blocked by the role gates on each route.
+    """
     personnel_id = payload.get("personnel_id")
     if not isinstance(personnel_id, str) or not personnel_id:
         raise HTTPException(status_code=422, detail="personnel_id is required")
+
+    # Enforce personnel ownership for PERSONNEL role.
+    # The authenticated user identity binds the personnel_id scope (IDOR guard).
+    # The attempt is audited as an idor_denial before the 403 is raised.
+    if current_user["role"] == "PERSONNEL":
+        if personnel_id != current_user["user_id"]:
+            await log_denial(
+                "idor_denial",
+                request,
+                current_user,
+                reason="personnel_scope_violation",
+                details={"target_personnel_id": personnel_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Personnel can only create records for themselves",
+            )
+
     doc = {"id": str(uuid4()), "personnel_id": personnel_id, "created_at": utc_now(), "payload": payload}
-    await db[collection].insert_one(doc)
+    await getattr(db, collection).insert_one(doc)
     return RecordResponse(**doc)
+
+
+@router.post("/wellness_logs", response_model=RecordResponse)
+async def create_wellness_log(payload: dict[str, Any], request: Request, current_user: dict = Depends(require_any_role("PERSONNEL", "WELFARE_OFFICER"))) -> RecordResponse:
+    """PERSONNEL (own records only) / WELFARE_OFFICER (any personnel) — Create wellness record.
+
+    COMMANDER is blocked: individual wellness records are inaccessible to the
+    Command role in this phase.
+    """
+    return await _create_record("wellness_logs", payload, request, current_user)
+
+
+@router.post("/workload_records", response_model=RecordResponse)
+async def create_workload_record(payload: dict[str, Any], request: Request, current_user: dict = Depends(require_any_role("PERSONNEL", "WELFARE_OFFICER"))) -> RecordResponse:
+    """PERSONNEL (own records only) / WELFARE_OFFICER (any personnel) — Create workload record.
+
+    COMMANDER is blocked: individual workload records are inaccessible to the
+    Command role in this phase.
+    """
+    return await _create_record("workload_records", payload, request, current_user)
+
+
+@router.post("/deployment_history", response_model=RecordResponse)
+async def create_deployment_history(payload: dict[str, Any], request: Request, current_user: dict = Depends(require_any_role("PERSONNEL", "WELFARE_OFFICER"))) -> RecordResponse:
+    """PERSONNEL (own records only) / WELFARE_OFFICER (any personnel) — Create deployment record.
+
+    COMMANDER is blocked: individual deployment records are inaccessible to the
+    Command role in this phase.
+    """
+    return await _create_record("deployment_history", payload, request, current_user)
+
+
+@router.post("/leave_requests", response_model=RecordResponse)
+async def create_leave_request(payload: dict[str, Any], request: Request, current_user: dict = Depends(require_any_role("PERSONNEL", "WELFARE_OFFICER"))) -> RecordResponse:
+    """PERSONNEL (own records only) / WELFARE_OFFICER (any personnel) — Create leave request.
+
+    COMMANDER is blocked: individual leave records are inaccessible to the
+    Command role in this phase.
+    """
+    return await _create_record("leave_requests", payload, request, current_user)
+
+
+@router.get("/my/records", response_model=list[PersonnelRecord])
+async def my_records(current_user: dict = Depends(require_personnel)) -> list[PersonnelRecord]:
+    """PERSONNEL — Read only the authenticated user's own welfare records.
+
+    Task 3C data isolation: the ownership scope is derived from the
+    authenticated identity (current_user["user_id"]) and applied directly in
+    each database query.  No client-supplied personnel_id or user_id field is
+    accepted, so ownership can never be bypassed by request tampering.
+    """
+    user_id = current_user["user_id"]
+    records: list[PersonnelRecord] = []
+    for collection in PERSONNEL_RECORD_COLLECTIONS:
+        docs = await getattr(db, collection).find({"personnel_id": user_id}).sort("created_at", -1).to_list(100)
+        for doc in docs:
+            records.append(
+                PersonnelRecord(
+                    id=doc["id"],
+                    collection=collection,
+                    created_at=doc["created_at"],
+                    payload=doc.get("payload", {}),
+                )
+            )
+    records.sort(key=lambda item: item.created_at, reverse=True)
+    return records
+
+
+@router.get("/my/assessments", response_model=list[PersonnelAssessment])
+async def my_assessments(current_user: dict = Depends(require_personnel)) -> list[PersonnelAssessment]:
+    """PERSONNEL — Read only the authenticated user's own assessment timestamps.
+
+    Deliberately returns no risk intelligence (no band, probability, SHAP,
+    what-changed, recommendations, trust or decision data): only assessment
+    identity and when it was recorded.  The query is scoped by authenticated
+    identity in the database query itself.
+    """
+    user_id = current_user["user_id"]
+    docs = await db.risk_assessments.find({"personnel_id": user_id}).sort("assessed_at", 1).to_list(100)
+    return [PersonnelAssessment(assessment_id=doc["id"], assessed_at=doc["assessed_at"]) for doc in docs]

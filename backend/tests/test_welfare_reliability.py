@@ -7,6 +7,7 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
+from lib.feature_engineering import RAW_NUMERIC_FEATURES
 from routers import welfare
 
 
@@ -18,16 +19,23 @@ def _demo_person(client: httpx.Client) -> dict:
     return response.json()[0]
 
 
-def test_missing_feature_returns_422(client: httpx.Client):
-    response = client.post("/predict", json={"features": {}})
+def test_missing_raw_records_returns_422(client: httpx.Client):
+    response = client.post("/predict", json={"personnel_id": "reliability-missing"})
     assert response.status_code == 422
-    assert len(response.json()["detail"]["missing_features"]) == 44
+    assert "raw_records" in response.text
+
+
+def test_client_supplied_features_are_rejected(client: httpx.Client):
+    person = _demo_person(client)
+    response = client.post("/predict", json={"personnel_id": person["id"], "features": person["features"]})
+    assert response.status_code == 422
+    assert "features" in response.text
 
 
 def test_valid_prediction_probabilities_trust_and_persistence(client: httpx.Client):
     person = _demo_person(client)
     unique_id = f"reliability-{int(time.time() * 1000)}"
-    response = client.post("/predict", json={"personnel_id": unique_id, "features": person["features"]})
+    response = client.post("/predict", json={"personnel_id": unique_id, "raw_records": person["raw_records"]})
     assert response.status_code == 200, response.text
     body = response.json()
     probabilities = [item["probability"] for item in body["class_probabilities"]]
@@ -44,11 +52,16 @@ def test_valid_prediction_probabilities_trust_and_persistence(client: httpx.Clie
 
 def test_low_trust_abstains_and_never_becomes_low_risk_by_default(client: httpx.Client):
     person = _demo_person(client)
-    low_trust_features = dict(person["features"])
-    for feature in low_trust_features:
-        if feature.endswith("__was_missing"):
-            low_trust_features[feature] = 1.0
-    response = client.post("/predict", json={"personnel_id": "low-trust-test", "features": low_trust_features})
+    # Force complete original-source missingness through raw records: every raw
+    # numeric field is absent, so every __was_missing flag is 1 after the
+    # server-side pipeline -> completeness 0 -> trust below the threshold.
+    nulled_raw_records = []
+    for record in person["raw_records"]:
+        nulled = dict(record)
+        for field in RAW_NUMERIC_FEATURES:
+            nulled[field] = None
+        nulled_raw_records.append(nulled)
+    response = client.post("/predict", json={"personnel_id": "low-trust-test", "raw_records": nulled_raw_records})
     assert response.status_code == 200, response.text
     body = response.json()
     assert 0 <= body["data_trust"]["score"] < body["data_trust"]["threshold"] <= 100
