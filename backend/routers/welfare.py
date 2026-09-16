@@ -12,6 +12,7 @@ from lib.feature_engineering import (
     STATIC_FEATURES,
     records_to_frame,
 )
+from lib.history import get_personnel_history
 from lib.inference import InferenceEngine, ModelArtifactError, utc_now
 from lib.rbac_deps import require_any_role, require_personnel, require_welfare_officer
 from models.welfare import (
@@ -28,6 +29,7 @@ from models.welfare import (
     Personnel,
     PersonnelAssessment,
     PersonnelCreate,
+    PersonnelHistory,
     PersonnelPredictionResponse,
     PersonnelRecord,
     PredictRequest,
@@ -230,6 +232,29 @@ async def list_personnel(current_user: dict = Depends(require_welfare_officer)) 
     """
     docs = await db.personnel.find().sort("created_at", -1).to_list(100)
     return [Personnel(**doc) for doc in docs]
+
+
+@router.get("/personnel/{personnel_id}/history", response_model=PersonnelHistory)
+async def personnel_history(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> PersonnelHistory:
+    """WELFARE_OFFICER — Longitudinal welfare/workload history for ONE authorized
+    personnel record.
+
+    Task 4A retrieval layer: static personnel info, wellness logs, workload
+    records, deployment history, leave requests and existing risk assessments
+    are collected into a deterministic chronological envelope by
+    ``lib.history.get_personnel_history``.
+
+    Access: WELFARE_OFFICER only. PERSONNEL is blocked (never another person's
+    records; their own self-service view already exists at /my/records and
+    /my/assessments) and COMMANDER is blocked (aggregate /overview only), both
+    by the role gate.  Stored assessments are minimized (no feature vector,
+    date_key, is_latest or confidence_basis) and payloads are scrubbed of
+    credential-like keys before any data is returned.
+    """
+    return await get_personnel_history(personnel_id, current_user)
 
 
 @router.post("/personnel", response_model=Personnel)

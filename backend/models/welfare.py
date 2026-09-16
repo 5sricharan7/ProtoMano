@@ -240,3 +240,54 @@ class PersonnelAssessment(BaseModel):
 
     assessment_id: str
     assessed_at: datetime
+
+
+# --- Task 4A: Welfare intelligence historical retrieval ---
+
+
+class HistoryRecord(BaseModel):
+    """One stored document in a personnel's welfare history.
+
+    ``event_at`` is the effective chronological timestamp the retrieval layer
+    sorted on (``created_at`` for welfare/workload/deployment/leave records,
+    ``assessed_at`` for risk assessments).  It is None only when the source
+    document carries no usable timestamp, in which case the record sorts after
+    all timestamped records (deterministically by ``id``).
+    """
+
+    id: str
+    collection: str
+    event_at: datetime | None = None
+    payload: dict[str, Any]
+
+
+class HistorySection(BaseModel):
+    """A single collection's history for one personnel.
+
+    ``present`` marks whether ANY document was found for the personnel in this
+    collection.  ``present=false`` means missing data (never fabricated);
+    ``present=true`` does not imply non-zero values — zero-valued records are
+    still returned as real historical data.
+    """
+
+    present: bool
+    record_count: int
+    records: list[HistoryRecord]
+
+
+class PersonnelHistory(BaseModel):
+    """WELFARE_OFFICER — Longitudinal welfare/workload history for one
+    authorized personnel record.
+
+    Collects static personnel info, wellness logs, workload records,
+    deployment history, leave requests and existing risk assessments into a
+    deterministic chronological envelope.  Stored assessments are minimized
+    exactly like OfficerAssessment: the 44-feature vector, date_key, is_latest
+    and confidence_basis are never exposed.
+    """
+
+    personnel_id: str
+    personnel: dict[str, Any] | None = None
+    sections: dict[str, HistorySection]
+    generated_at: datetime
+    notes: list[str]
