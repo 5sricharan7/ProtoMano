@@ -32,6 +32,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from lib.db import db
+from lib.feature_engineering import (
+    RAW_NUMERIC_FEATURES,
+    REQUIRED_RAW_COLUMNS,
+    STATIC_FEATURES,
+)
 
 # Fixed section order — the response dict preserves insertion order.
 COLLECTION_ORDER = (
@@ -41,6 +46,23 @@ COLLECTION_ORDER = (
     "leave_requests",
     "risk_assessments",
 )
+
+# Raw welfare-record collections consumed by the Task 4B window builder.
+# risk_assessments is NOT included: it stores engineered vectors, not raw
+# weekly records, and its minimized band/probability is welfare-officer
+# decision material that must never reach a PERSONNEL response.
+RAW_OBSERVATION_COLLECTIONS = (
+    "wellness_logs",
+    "workload_records",
+    "deployment_history",
+    "leave_requests",
+)
+
+# Static raw-feature fields that may live on a personnel document; the window
+# builder falls back to these when no observation payload supplies them.
+# Aliased from feature_engineering.STATIC_FEATURES so the Task 4B window can
+# never drift from the model's input contract.
+_PERSONNEL_STATIC_FIELDS = STATIC_FEATURES
 
 # Recursive payload scrub: any mapping key matching one of these tokens is
 # dropped before the record leaves the service.  Defense in depth — welfare
@@ -131,6 +153,19 @@ def _minimize_personnel(doc: dict[str, Any] | None) -> dict[str, Any] | None:
     if not doc:
         return None
     return {field: doc[field] for field in _PERSONNEL_SAFE_FIELDS if field in doc}
+
+
+def _minimize_personnel_with_static(doc: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Personnel envelope for the raw-window path.
+
+    Same safe static identity fields as ``_minimize_personnel`` plus the raw
+    static feature fields the window builder may fall back to.  The envelope
+    is scrubbed of credential-like keys before returning.
+    """
+    if not doc:
+        return None
+    keys = tuple(_PERSONNEL_SAFE_FIELDS) + tuple(_PERSONNEL_STATIC_FIELDS)
+    return _sanitize({field: doc[field] for field in keys if field in doc})
 
 
 def _minimize_assessment(doc: dict[str, Any]) -> dict[str, Any]:
@@ -267,3 +302,224 @@ async def get_personnel_history(
             "Stored risk assessments are minimized (no feature vector, date_key, is_latest or confidence_basis); histories are chronological within each section.",
         ],
     }
+
+
+# --- Task 4B: Exact 4-week raw-record intelligence window ---
+
+
+class WindowBuilderError(ValueError):
+    """Raised when the 4-week raw-record window cannot be constructed."""
+
+
+# The window is exactly 4 weeks (week 0 = oldest ... week 3 = latest) ending
+# at the person's latest timestamped observation.
+WINDOW_WEEK_COUNT = 4
+WINDOW_SPAN_DAYS = 28
+
+
+def _week_index(observation_date: datetime, anchor_date: datetime) -> int | None:
+    """Map an observation datetime to its week (0-3) relative to the anchor.
+
+    Week 3 (latest): 0-6 days before the anchor.
+    Week 2: 7-13 days before.  Week 1: 14-20 days before.
+    Week 0 (oldest in-window): 21-27 days before.
+    Observations at least 28 days before the anchor fall OUTSIDE the selected
+    4-week window and return None -- they are excluded, never clipped in.
+    """
+    days_before = (anchor_date - observation_date).days
+    if days_before < 0 or days_before >= WINDOW_SPAN_DAYS:
+        return None
+    return 3 - days_before // 7
+
+
+def _build_raw_record(
+    personnel_id: str,
+    week: int,
+    static_fields: dict[str, Any],
+    observations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Assemble one raw weekly record exactly matching the feature-engineering
+    column contract (``REQUIRED_RAW_COLUMNS``).
+
+    ``static_fields`` were resolved ONCE for the whole window, so every week
+    repeats identical static personnel values.  ``observations`` are that
+    week's 4A history records in deterministic order; their payload fields are
+    merged (union, later observations win on duplicate keys) with no
+    aggregation, imputation or fabrication.  Unobserved fields stay None so
+    feature_engineering's causal imputation path can do its job.
+    """
+    record: dict[str, Any] = {"personnel_id": personnel_id, "week": week}
+    record.update(static_fields)
+    merged_payload: dict[str, Any] = {}
+    for obs in observations:
+        payload = obs.get("payload")
+        if isinstance(payload, dict):
+            merged_payload.update(payload)
+    for field in RAW_NUMERIC_FEATURES:
+        record[field] = merged_payload.get(field)
+    return record
+
+
+def _validate_raw_window_contract(raw_records: list[dict[str, Any]]) -> None:
+    """Defense in depth: raw records must contain EXACTLY the columns the
+    existing feature-engineering contract accepts, with a valid personnel_id
+    and numeric week 0-3.  Structural check only -- never engineers features.
+    """
+    required = set(REQUIRED_RAW_COLUMNS)
+    for record in raw_records:
+        if set(record) != required:
+            raise WindowBuilderError(
+                f"raw record for week {record.get('week')} does not match the feature-engineering contract"
+            )
+        pid = record.get("personnel_id")
+        if not isinstance(pid, str) or not pid.strip():
+            raise WindowBuilderError("raw record personnel_id must be a non-empty string")
+        week = record.get("week")
+        if not isinstance(week, int) or week not in range(WINDOW_WEEK_COUNT):
+            raise WindowBuilderError("raw record 'week' must be an integer in 0-3")
+
+
+async def build_four_week_window(
+    personnel_id: str,
+    current_user: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the exact 4-week raw-record intelligence window for one personnel.
+
+    Task 4B: converts the Task 4A historical retrieval into the precise raw
+    weekly records consumed by ``lib.feature_engineering.records_to_frame`` /
+    ``features_for_latest_week`` and ``lib.inference.predict_from_raw_records``.
+
+    Window semantics:
+    1. Retrieves the person's history through the Task 4A retrieval layer.
+    2. Anchors on the LATEST timestamped observation across the four raw
+       welfare collections (never a guessed "today").
+    3. Clusters observations into exactly 4 chronological weeks (0=oldest ..
+       3=latest) ending at that anchor.
+    4. Emits all 4 weekly raw records; weeks without data stay all-missing.
+    5. Preserves missingness explicitly (None) -- nothing is imputed,
+       averaged, differenced or fabricated here.
+    6. Excludes observations older than the 28-day window and never uses any
+       record after the anchor, so raw records contain no out-of-window data.
+    7. Resolves static personnel fields once and repeats them identically
+       across every week.
+
+    Authorization: WELFARE_OFFICER only (defense in depth -- the Task 4A layer
+    re-checks the authenticated role before any window is built).
+
+    Returns:
+        Envelope with ``personnel_id``, scrubbed ``personnel`` static info,
+        ``raw_records`` (weeks 0..3, ready for feature engineering),
+        ``window_start`` / ``window_end`` / ``latest_observation_date``,
+        ``week_count``, ``weeks_with_data`` and explanatory ``notes``.
+
+    Raises:
+        ValueError: empty personnel_id or no usable observations.
+        HistoryAccessError: non-WELFARE_OFFICER caller.
+        WindowBuilderError: observations are present but unusable.
+    """
+    if not isinstance(personnel_id, str) or not personnel_id.strip():
+        raise ValueError("personnel_id is required")
+
+    history = await get_personnel_history(
+        personnel_id, current_user, max_records_per_section=10000
+    )
+
+    observations: list[dict[str, Any]] = []
+    for collection in RAW_OBSERVATION_COLLECTIONS:
+        section = history.get("sections", {}).get(collection) or {}
+        for record in section.get("records", []):
+            event_at = record.get("event_at")
+            if event_at is None:
+                # No usable timestamp: placing it would mean guessing a week.
+                continue
+            observations.append({
+                "id": str(record.get("id", "")),
+                "collection": collection,
+                "event_at": event_at,
+                "payload": record.get("payload", {}),
+            })
+
+    if not observations:
+        raise WindowBuilderError(
+            f"No timestamped welfare observations found for personnel_id {personnel_id}; "
+            "cannot construct the 4-week raw-record window"
+        )
+
+    # Deterministic global order: calendar datetime, then record id. Duplicate
+    # record ids are de-duplicated (first in this order wins) so output never
+    # depends on insertion order.
+    observations.sort(key=lambda obs: (obs["event_at"].timestamp(), obs["id"]))
+    deduped: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for obs in observations:
+        if obs["id"] in seen_ids:
+            continue
+        seen_ids.add(obs["id"])
+        deduped.append(obs)
+    observations = deduped
+
+    anchor_date = observations[-1]["event_at"]
+
+    observations_by_week: dict[int, list[dict[str, Any]]] = {
+        week: [] for week in range(WINDOW_WEEK_COUNT)
+    }
+    window_observations: list[dict[str, Any]] = []
+    for obs in observations:
+        week = _week_index(obs["event_at"], anchor_date)
+        if week is None:
+            continue  # outside the selected 4-week window
+        observations_by_week[week].append(obs)
+        window_observations.append(obs)
+
+    personnel_doc = await db.personnel.find_one({"id": personnel_id})
+
+    # Static personnel fields: resolve ONCE per window so every week is
+    # consistent.  Personnel document first, then the first payload in
+    # deterministic order, else None (missing stays missing).
+    static_fields: dict[str, Any] = {}
+    for field in STATIC_FEATURES:
+        value = None
+        if personnel_doc and field in personnel_doc:
+            value = personnel_doc[field]
+        else:
+            for obs in window_observations:
+                payload = obs.get("payload")
+                if isinstance(payload, dict) and field in payload:
+                    value = payload[field]
+                    break
+        static_fields[field] = value
+
+    raw_records: list[dict[str, Any]] = [
+        _build_raw_record(personnel_id, week, static_fields, observations_by_week[week])
+        for week in range(WINDOW_WEEK_COUNT)
+    ]
+    _validate_raw_window_contract(raw_records)
+
+    weeks_with_data: list[int] = [
+        week for week in range(WINDOW_WEEK_COUNT) if observations_by_week[week]
+    ]
+    window_start = min(obs["event_at"] for obs in window_observations)
+
+    return {
+        "personnel_id": personnel_id,
+        "personnel": _minimize_personnel_with_static(personnel_doc),
+        "raw_records": raw_records,
+        "window_start": window_start,
+        "window_end": anchor_date,
+        "latest_observation_date": anchor_date,
+        "week_count": len(weeks_with_data),
+        "weeks_with_data": weeks_with_data,
+        "notes": [
+            "Raw records are chronological: week 0 is the oldest in-window week, week 3 holds the latest observation.",
+            "The window always ends at the latest timestamped observation; observations older than 28 days before it are outside the window and excluded.",
+            "Observations without a usable timestamp cannot be placed in a week and are excluded rather than guessed.",
+            "Missing values are represented as None (null) and are never fabricated; the existing feature-engineering pipeline performs causal imputation.",
+            "No record from after the latest observation is used, so raw records never contain future data.",
+            "Personnel static fields are resolved once and repeated identically across all weeks.",
+            "Duplicate ids are de-duplicated in deterministic (timestamp, id) order; same-week records are merged with later observations winning on shared fields.",
+        ],
+    }
+
+
+# Keep a history-matching alias for the same entry point.
+get_personnel_raw_window = build_four_week_window

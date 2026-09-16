@@ -12,7 +12,7 @@ from lib.feature_engineering import (
     STATIC_FEATURES,
     records_to_frame,
 )
-from lib.history import get_personnel_history
+from lib.history import build_four_week_window, get_personnel_history
 from lib.inference import InferenceEngine, ModelArtifactError, utc_now
 from lib.rbac_deps import require_any_role, require_personnel, require_welfare_officer
 from models.welfare import (
@@ -31,6 +31,7 @@ from models.welfare import (
     PersonnelCreate,
     PersonnelHistory,
     PersonnelPredictionResponse,
+    PersonnelRawWindow,
     PersonnelRecord,
     PredictRequest,
     PredictionResponse,
@@ -747,3 +748,26 @@ async def my_assessments(current_user: dict = Depends(require_personnel)) -> lis
     user_id = current_user["user_id"]
     docs = await db.risk_assessments.find({"personnel_id": user_id}).sort("assessed_at", 1).to_list(100)
     return [PersonnelAssessment(assessment_id=doc["id"], assessed_at=doc["assessed_at"]) for doc in docs]
+
+
+@router.get("/personnel/{personnel_id}/raw-window", response_model=PersonnelRawWindow)
+async def personnel_raw_window(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> PersonnelRawWindow:
+    """WELFARE_OFFICER — Exact 4-week raw-record intelligence window for ONE
+    personnel record.
+
+    Task 4B: converts the Task 4A history into the precise raw-record
+    structure expected by ``lib.feature_engineering.records_to_frame`` and
+    ``lib.inference.predict_from_raw_records``.  The window always ends at the
+    latest timestamped observation and never uses future or out-of-window
+    observations; missingness is preserved (never fabricated).
+
+    Access: WELFARE_OFFICER only (defense in depth — the service re-checks the
+    role).  PERSONNEL is blocked (never another person's window) and COMMANDER
+    is blocked (aggregate /overview only), both by the role gate.  Responses
+    carry only raw weekly features plus a scrubbed personnel envelope — never
+    credentials, the 44-feature vector, model internals or risk band material.
+    """
+    return PersonnelRawWindow(**await build_four_week_window(personnel_id, current_user))

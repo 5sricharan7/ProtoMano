@@ -291,3 +291,54 @@ class PersonnelHistory(BaseModel):
     sections: dict[str, HistorySection]
     generated_at: datetime
     notes: list[str]
+
+
+# --- Task 4B: Exact 4-week raw-record intelligence window ---
+
+
+class RawWindowRecord(BaseModel):
+    """One raw weekly record in the 4-week window.
+
+    The static/raw values are deliberately untyped (``Any``) so stored values
+    are forwarded exactly as they exist — no coercion, no imputation.  Missing
+    values are None.  The fixed column set mirrors
+    ``lib.feature_engineering.REQUIRED_RAW_COLUMNS`` so the output can be
+    passed straight into the existing feature-engineering pipeline.
+    """
+
+    personnel_id: str
+    week: int
+    years_of_service: Any = None
+    hardship_posting_flag: Any = None
+    transfer_count_24mo: Any = None
+    years_in_current_posting: Any = None
+    weekly_duty_hours: Any = None
+    night_shift_ratio: Any = None
+    overtime_hours: Any = None
+    days_since_last_rest: Any = None
+    days_since_last_leave: Any = None
+    leave_balance: Any = None
+    wellness_score_self_report: Any = None
+    sleep_quality_score_self_report: Any = None
+    resting_hr_trend_biometric: Any = None
+    sleep_hours_biometric: Any = None
+
+
+class PersonnelRawWindow(BaseModel):
+    """WELFARE_OFFICER — Exact 4-week raw-record window for one personnel.
+
+    ``raw_records`` are ordered chronologically (week 0 oldest .. week 3
+    latest) and are ready to be passed directly to the existing feature
+    engineering and inference layers.  Missing weeks are represented by records
+    whose raw fields are None — nothing is fabricated.
+    """
+
+    personnel_id: str
+    personnel: dict[str, Any] | None = None
+    raw_records: list[RawWindowRecord]
+    window_start: datetime
+    window_end: datetime
+    latest_observation_date: datetime
+    week_count: int
+    weeks_with_data: list[int]
+    notes: list[str]
