@@ -15,7 +15,9 @@ from lib.feature_engineering import (
 from lib.history import build_four_week_window, get_personnel_history
 from lib.inference import InferenceEngine, ModelArtifactError, utc_now
 from lib.rbac_deps import require_any_role, require_personnel, require_welfare_officer
+from lib.welfare_prediction import WelfarePredictionUnavailable, predict_personnel_welfare
 from models.welfare import (
+    DataSufficiency,
     DataTrust,
     DecisionSupport,
     EarlyWarning,
@@ -35,8 +37,10 @@ from models.welfare import (
     PersonnelRecord,
     PredictRequest,
     PredictionResponse,
+    PredictionUnavailable,
     RecordResponse,
     TrajectoryPoint,
+    WelfarePredictionResponse,
 )
 
 
@@ -58,6 +62,20 @@ def _ensure_engine_ready() -> None:
         raise HTTPException(
             status_code=503,
             detail=f"AI model artifacts are unavailable: {engine.load_error or 'risk model or preprocessing pipeline is not loaded'}",
+        )
+
+
+def _ensure_welfare_engine_ready() -> None:
+    """Sanitized readiness gate for the welfare-prediction endpoint.
+
+    Unlike ``_ensure_engine_ready`` (which echoes the artifact load error), this
+    helper never exposes model filenames, artifact paths or internal details to
+    the API surface.
+    """
+    if engine.load_error or engine.risk_model is None or engine.preprocessing_pipeline is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
         )
 
 
@@ -771,3 +789,83 @@ async def personnel_raw_window(
     credentials, the 44-feature vector, model internals or risk band material.
     """
     return PersonnelRawWindow(**await build_four_week_window(personnel_id, current_user))
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-prediction",
+    response_model=Union[PredictionUnavailable, WelfarePredictionResponse],
+)
+async def personnel_welfare_prediction(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> Union[PredictionUnavailable, WelfarePredictionResponse]:
+    """WELFARE_OFFICER — Model-backed welfare prediction for ONE personnel.
+
+    Task 4C production integration: MongoDB -> ``build_four_week_window`` ->
+    canonical 44-feature engineering -> calibrated LightGBM -> prediction.
+
+    The 4-week raw window is built from the person's STORED welfare records
+    (it always ends at the latest timestamped observation — never a guessed
+    "today" and never a future record), the 44 features are derived
+    server-side by the existing feature-engineering pipeline, and the existing
+    calibrated model produces the risk signal.
+
+    Access: WELFARE_OFFICER only.  PERSONNEL can never view anyone's welfare
+    prediction here (including their own) and COMMANDER remains aggregate-only
+    — both are blocked by the role gate.  The 44-feature vector, model
+    filenames, artifact paths and credentials are never returned.
+
+    Incomplete or missing stored data returns a structured
+    ``PredictionUnavailable`` envelope instead of a fabricated prediction;
+    model/artifact failures surface as a sanitized 503.
+    """
+    _ensure_welfare_engine_ready()
+    try:
+        window, result, features = await predict_personnel_welfare(
+            personnel_id, current_user, engine
+        )
+    except WelfarePredictionUnavailable as exc:
+        return PredictionUnavailable(
+            status="insufficient_data",
+            personnel_id=personnel_id,
+            reason=exc.reason,
+            message=exc.message,
+        )
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+
+    trust = _data_trust(features)
+    decision = _decision_support(result["predicted_band"], trust, "insufficient_history")
+    return WelfarePredictionResponse(
+        personnel_id=personnel_id,
+        predicted_band=result["predicted_band"],
+        risk_probability=result["risk_probability"],
+        class_probabilities=result["class_probabilities"],
+        prediction_confidence=result["prediction_confidence"],
+        confidence_basis=result["confidence_basis"],
+        top_contributing_factors=result["top_contributing_factors"],
+        data_trust=trust,
+        decision_support=decision,
+        welfare_recommendations=_recommendations(result["predicted_band"]),
+        data_sufficiency=DataSufficiency(
+            week_count=window["week_count"],
+            weeks_with_data=window["weeks_with_data"],
+            latest_observation_date=window["latest_observation_date"],
+            basis=(
+                "The 4-week raw window ends at the latest stored observation "
+                "(causal, never a future date); weeks without data stay missing "
+                "and are handled by the canonical causal imputation path."
+            ),
+        ),
+        model_version=result["model_version"],
+        feature_version=result["feature_version"],
+        assessed_at=utc_now(),
+        derived_outputs=[
+            "The 44-feature vector is derived server-side from the stored 4-week raw window by the canonical feature-engineering pipeline and is never returned.",
+            "Data Trust is a deterministic data-quality heuristic, not model confidence; the response can abstain (VERIFY_DATA) when stored data is incomplete.",
+            "Welfare recommendations are auditable platform rules, not additional model predictions.",
+        ],
+    )

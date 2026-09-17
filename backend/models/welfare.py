@@ -342,3 +342,61 @@ class PersonnelRawWindow(BaseModel):
     week_count: int
     weeks_with_data: list[int]
     notes: list[str]
+
+
+# --- Task 4C: Dedicated welfare prediction (Welfare Officer) ---
+
+
+class DataSufficiency(BaseModel):
+    """Window-level data adequacy summary attached to a welfare prediction.
+
+    Tells the officer exactly how much raw welfare history supported the run.
+    Missing weeks are never fabricated: ``weeks_with_data`` lists only the
+    weeks that actually carried timestamped observations.
+    """
+
+    week_count: int
+    weeks_with_data: list[int]
+    latest_observation_date: datetime
+    basis: str
+
+
+class WelfarePredictionResponse(BaseModel):
+    """WELFARE_OFFICER — Model-backed welfare prediction for ONE personnel.
+
+    Produced from the stored 4-week raw window through the canonical
+    feature-engineering pipeline and the calibrated model by
+    ``lib.welfare_prediction``.  Deliberately excludes the 44-feature vector,
+    model filenames, artifact paths and credentials; insufficient stored data
+    yields ``PredictionUnavailable`` instead of a fabricated prediction.
+    """
+
+    personnel_id: str
+    predicted_band: RiskBand
+    risk_probability: float
+    class_probabilities: list[ClassProbability]
+    prediction_confidence: float
+    confidence_basis: str
+    top_contributing_factors: list[Contribution]
+    data_trust: DataTrust
+    decision_support: DecisionSupport
+    welfare_recommendations: list[str]
+    data_sufficiency: DataSufficiency
+    model_version: str
+    feature_version: str
+    assessed_at: datetime
+    derived_outputs: list[str]
+
+
+class PredictionUnavailable(BaseModel):
+    """Safe structured envelope when a model-backed prediction is not possible.
+
+    Returned instead of guessing or fabricating a risk signal (no band,
+    probability, contributions, trust or feature data).  ``reason`` is a safe
+    machine-readable label; ``message`` is an officer-readable explanation.
+    """
+
+    status: Literal["insufficient_data"]
+    personnel_id: str
+    reason: str
+    message: str
