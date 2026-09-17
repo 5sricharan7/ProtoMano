@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from lib.audit_service import log_denial
 from lib.db import db
+from lib.explanation import build_welfare_explanation
 from lib.feature_engineering import (
     RAW_NUMERIC_FEATURES,
     STATIC_FEATURES,
@@ -44,6 +45,8 @@ from models.welfare import (
     TrajectoryPoint,
     WelfarePredictionResponse,
     WelfareTrajectoryResponse,
+    ExplanationUnavailable,
+    WelfareExplanationResponse,
 )
 
 
@@ -925,3 +928,53 @@ async def personnel_welfare_trajectory(
             detail="Model-backed welfare prediction is temporarily unavailable",
         ) from exc
     return WelfareTrajectoryResponse(**payload)
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-explanation",
+    response_model=Union[ExplanationUnavailable, WelfareExplanationResponse],
+)
+async def personnel_welfare_explanation(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> Union[ExplanationUnavailable, WelfareExplanationResponse]:
+    """WELFARE_OFFICER — Explainable welfare signal for ONE personnel.
+
+    Task 4E: decision-support explanation REUSING the existing Task 4C
+    prediction service (stored 4-week raw window -> canonical 44-feature
+    engineering -> the existing calibrated LightGBM artifact) and the existing
+    temporal evidence.  Nothing is retrained, re-derived or replaced.
+
+    The officer receives:
+    - a compact prediction reference (band + risk probability),
+    - the deployed model's NATIVE additive top contributing factors with
+      officer-readable display labels and direction/impact summary,
+    - a temporal "What Changed?" summary over the available causal evidence
+      (newest prior stored snapshot dated at/before the run, else the prior
+      observed week of the raw window), where missing data is never reported as
+      improvement or deterioration,
+    - an explicit explanation availability/status and evidence basis.
+
+    Access: WELFARE_OFFICER only — PERSONNEL (including for themselves) and
+    COMMANDER (aggregate-only) are blocked by the role gate, matching 4C/4D.
+    The 44-feature vector, model filenames, artifact paths, credentials and
+    unnecessary raw personnel records are never returned.  No usable stored data
+    yields a structured ``ExplanationUnavailable`` envelope; model/artifact
+    failures surface as a sanitized 503.
+    """
+    _ensure_welfare_engine_ready()
+    try:
+        payload = await build_welfare_explanation(personnel_id, current_user, engine)
+    except WelfarePredictionUnavailable as exc:
+        return ExplanationUnavailable(
+            status="insufficient_data",
+            personnel_id=personnel_id,
+            reason=exc.reason,
+            message=exc.message,
+        )
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+    return WelfareExplanationResponse(**payload)

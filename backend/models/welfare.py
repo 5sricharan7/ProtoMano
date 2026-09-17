@@ -437,3 +437,104 @@ class WelfareTrajectoryResponse(BaseModel):
     evidence_basis: str
     assessed_at: datetime
     derived_outputs: list[str]
+
+
+# --- Task 4E: Explainable welfare AI (Welfare Officer) ---
+
+
+class ExplanationFactor(BaseModel):
+    """One top contributing factor with an officer-readable display label.
+
+    ``feature`` carries the PUBLIC metadata factor name (the same surface the
+    4C/4D endpoints already expose for contributions); the raw engineered
+    44-feature vector, model filenames, artifact paths and credentials are never
+    returned.
+    """
+
+    feature: str
+    display_name: str
+    contribution: float
+    direction: Literal["increases", "decreases", "neutral"]
+    impact_summary: str
+
+
+class WhatChangedItem(BaseModel):
+    """One observable current-vs-prior change.
+
+    Only factors observed in BOTH periods are reported; missing data is never
+    shown as improvement or deterioration.  ``impact`` describes movement of the
+    model's risk signal (decision support) and is ``unknown`` whenever a
+    per-factor direction is not reliably available.
+    """
+
+    feature: str
+    display_name: str
+    previous: float
+    current: float
+    delta: float
+    change: Literal["increased", "decreased"]
+    contribution_direction: Literal["increases", "decreases", "neutral", "unknown"]
+    impact: Literal["increases_risk_signal", "decreases_risk_signal", "unknown"]
+
+
+class WhatChangedSummary(BaseModel):
+    """Temporal 'What Changed?' envelope.
+
+    ``status`` is ``available`` when a comparison was possible (even with no
+    material change inside the materiality threshold) and ``insufficient_data``
+    when no usable prior temporal evidence exists — nothing is invented.
+    """
+
+    status: Literal["available", "insufficient_data"]
+    comparison: Literal["prior_assessment", "prior_week"] | None = None
+    basis: str
+    no_material_change: bool = False
+    changes: list[WhatChangedItem] = Field(default_factory=list)
+
+
+class ExplanationPredictionSummary(BaseModel):
+    """Compact prediction reference for the explanation envelope.
+
+    Mirrors the officer-facing risk signal; no class probabilities or internal
+    confidence material beyond what the dedicated 4C/4D endpoints already expose.
+    """
+
+    predicted_band: RiskBand
+    risk_probability: float
+
+
+class WelfareExplanationResponse(BaseModel):
+    """WELFARE_OFFICER — Explainable welfare signal for ONE personnel.
+
+    Decision-support explanation built from the existing Task 4C prediction and
+    the existing temporal evidence.  ``explanation_status`` is ``available``, or
+    ``explanation_unavailable`` when native per-factor contributions cannot be
+    produced for the artifact (the risk signal itself is unchanged).  Never
+    exposes the 44-feature vector, model filenames, artifact paths, credentials,
+    or unnecessary raw personnel records.
+    """
+
+    personnel_id: str
+    explanation_status: Literal["available", "explanation_unavailable"]
+    status_message: str
+    prediction: ExplanationPredictionSummary
+    explanation_method: Literal["native_feature_contributions"]
+    top_contributing_factors: list[ExplanationFactor]
+    what_changed: WhatChangedSummary
+    evidence_basis: str
+    derived_outputs: list[str]
+    assessed_at: datetime
+
+
+class ExplanationUnavailable(BaseModel):
+    """Safe structured envelope when an explanation cannot be produced.
+
+    Returned instead of guessing or fabricating an explanation (no prediction,
+    contribution, change or feature data).  ``reason`` is a safe machine-readable
+    label; ``message`` is an officer-readable explanation.
+    """
+
+    status: Literal["insufficient_data"]
+    personnel_id: str
+    reason: str
+    message: str
