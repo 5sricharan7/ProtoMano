@@ -5,7 +5,7 @@ from uuid import uuid4
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from lib.audit_service import log_denial
+from lib.audit_service import audit_log, log_denial
 from lib.db import db
 from lib.explanation import build_welfare_explanation
 from lib.feature_engineering import (
@@ -26,7 +26,12 @@ from models.welfare import (
     EarlyWarning,
     EvidenceQuality,
     Intervention,
+    InterventionAction,
+    InterventionActionCreate,
+    InterventionActionUpdate,
     InterventionCreate,
+    InterventionStatus,
+    InterventionType,
     DemoPersonnel,
     DemoSeedResponse,
     ModelInfo,
@@ -439,7 +444,7 @@ async def overview(current_user: dict = Depends(require_any_role("WELFARE_OFFICE
     today = datetime.now(timezone.utc).date().isoformat()
     personnel_count = await db.personnel.count_documents({})
     assessments_today = await db.risk_assessments.count_documents({"date_key": today})
-    open_interventions = await db.interventions.count_documents({"status": {"$in": ["NEW", "UNDER REVIEW", "SUPPORT INITIATED", "FOLLOW-UP", "Open", "In progress"]}})
+    open_interventions = await db.interventions.count_documents({"status": {"$in": ["NEW", "UNDER REVIEW", "SUPPORT INITIATED", "FOLLOW-UP", "Open", "In progress", "OPEN", "FOLLOW_UP"]}})
     high_risk_latest = await db.risk_assessments.count_documents({"predicted_band": "High", "is_latest": True})
     return Overview(
         personnel_count=personnel_count,
@@ -679,6 +684,184 @@ async def create_intervention(payload: InterventionCreate, current_user: dict = 
     doc.update({"id": str(uuid4()), "created_at": utc_now()})
     await db.interventions.insert_one(doc)
     return Intervention(**doc)
+
+
+# ---------------------------------------------------------------------------
+# Task 4G — Welfare Intervention & Action Tracking
+#
+# All 4G endpoints reuse the single shared ``db.interventions`` collection and
+# the authenticated ``current_user`` identity.  ``personnel_id`` is taken from
+# the URL path only (never the request body) and ``welfare_officer_id`` is
+# derived from the JWT (never trusted from the client).  COMMANDER and
+# PERSONNEL are blocked entirely: individual intervention records are
+# WELFARE_OFFICER-scoped decision-support material.
+# ---------------------------------------------------------------------------
+
+
+def _normalize_intervention_status(value: Any) -> str:
+    """Map legacy free-text intervention statuses onto the Task 4G status set.
+
+    Legacy non-terminal statuses ("NEW", "UNDER REVIEW", "SUPPORT INITIATED",
+    "Open", "In progress") remain OPEN; any variant of FOLLOW-UP maps to
+    FOLLOW_UP; terminal states (RESOLVED/Closed) map to CLOSED.  Unknown values
+    are treated as OPEN so a malformed stored document never crashes the read
+    path.
+    """
+    if value in InterventionStatus.__args__:
+        return value
+    normalized = str(value or "").strip().lower().replace("_", " ").replace("-", " ")
+    if normalized in ("resolved", "closed", "done"):
+        return "CLOSED"
+    if "follow" in normalized:
+        return "FOLLOW_UP"
+    return "OPEN"
+
+
+def _to_intervention_action(doc: dict) -> InterventionAction:
+    """Build a Task 4G response envelope, normalizing legacy stored documents.
+
+    4G documents carry ``intervention_id`` and the canonical enum values;
+    legacy Phase 3 documents carry only ``id`` and free-text values, which are
+    mapped defensively so both generations coexist in one collection.
+    """
+    action_type = doc.get("intervention_type")
+    if action_type not in InterventionType.__args__:
+        action_type = "OTHER"
+    return InterventionAction(
+        intervention_id=doc.get("intervention_id") or doc["id"],
+        personnel_id=doc["personnel_id"],
+        welfare_officer_id=doc.get("welfare_officer_id"),
+        created_at=doc["created_at"],
+        intervention_type=action_type,
+        reason=doc.get("reason"),
+        notes=doc.get("notes", ""),
+        status=_normalize_intervention_status(doc.get("status")),
+        follow_up_at=doc.get("follow_up_at"),
+        outcome=doc.get("outcome"),
+        outcome_notes=doc.get("outcome_notes"),
+        updated_at=doc.get("updated_at"),
+    )
+
+
+@router.post("/personnel/{personnel_id}/interventions", response_model=InterventionAction)
+async def create_personnel_intervention(
+    personnel_id: str,
+    payload: InterventionActionCreate,
+    request: Request,
+    current_user: dict = Depends(require_welfare_officer),
+) -> InterventionAction:
+    """WELFARE_OFFICER — Record a welfare intervention/action for one personnel.
+
+    Task 4G: the acting ``welfare_officer_id`` is derived from the
+    authenticated token, never from the client body.  An unknown personnel id is
+    a 404 (the officer is told immediately rather than writing an orphaned
+    intervention for a record that does not exist).
+    """
+    target = await db.personnel.find_one({"id": personnel_id})
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personnel record not found")
+
+    now = utc_now()
+    intervention_id = str(uuid4())
+    doc = {
+        "id": intervention_id,
+        "intervention_id": intervention_id,
+        "personnel_id": personnel_id,
+        "welfare_officer_id": current_user["user_id"],
+        "intervention_type": payload.intervention_type,
+        "reason": payload.reason,
+        "notes": payload.notes,
+        "status": payload.status,
+        "follow_up_at": payload.follow_up_at,
+        "outcome": payload.outcome,
+        "outcome_notes": payload.outcome_notes,
+        "created_at": now,
+        "updated_at": None,
+    }
+    await db.interventions.insert_one(doc)
+    await audit_log(
+        "intervention_created",
+        user_id=current_user.get("user_id"),
+        username=current_user.get("username"),
+        role=current_user.get("role"),
+        endpoint=request.url.path,
+        http_method=request.method,
+        success=True,
+        details={
+            "intervention_id": intervention_id,
+            "personnel_id": personnel_id,
+            "intervention_type": payload.intervention_type,
+            "status": payload.status,
+        },
+    )
+    return _to_intervention_action(doc)
+
+
+@router.get("/personnel/{personnel_id}/interventions", response_model=list[InterventionAction])
+async def list_personnel_interventions(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> list[InterventionAction]:
+    """WELFARE_OFFICER — List every intervention recorded for ONE personnel.
+
+    Newest first.  An unknown personnel id is a 404 rather than an empty list,
+    so a mistyped id cannot be silently mistaken for "no interventions".
+    """
+    target = await db.personnel.find_one({"id": personnel_id})
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personnel record not found")
+    docs = await db.interventions.find({"personnel_id": personnel_id}).sort("created_at", -1).to_list(100)
+    return [_to_intervention_action(doc) for doc in docs]
+
+
+@router.patch("/interventions/{intervention_id}", response_model=InterventionAction)
+async def update_intervention(
+    intervention_id: str,
+    payload: InterventionActionUpdate,
+    request: Request,
+    current_user: dict = Depends(require_welfare_officer),
+) -> InterventionAction:
+    """WELFARE_OFFICER — Update mutable lifecycle fields on an intervention.
+
+    Closing (status -> CLOSED) is audited as ``intervention_closed``; any other
+    state change is ``intervention_updated``.  Identity fields (owner officer,
+    personnel) are never client-editable; an empty or unknown body is rejected.
+    """
+    doc = await db.interventions.find_one({"intervention_id": intervention_id})
+    if doc is None:
+        doc = await db.interventions.find_one({"id": intervention_id})
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention record not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No update fields supplied")
+
+    previous_status = _normalize_intervention_status(doc.get("status"))
+    changes: dict[str, Any] = dict(updates)
+    changes["updated_at"] = utc_now()
+    await db.interventions.update_many({"id": doc["id"]}, {"$set": changes})
+    doc.update(changes)
+
+    new_status = updates.get("status", previous_status)
+    event_type = "intervention_updated"
+    if updates.get("status") == "CLOSED" and previous_status != "CLOSED":
+        event_type = "intervention_closed"
+    await audit_log(
+        event_type,
+        user_id=current_user.get("user_id"),
+        username=current_user.get("username"),
+        role=current_user.get("role"),
+        endpoint=request.url.path,
+        http_method=request.method,
+        success=True,
+        details={
+            "intervention_id": doc.get("intervention_id") or doc["id"],
+            "personnel_id": doc["personnel_id"],
+            "status": new_status,
+        },
+    )
+    return _to_intervention_action(doc)
 
 
 def _demo_raw_records(engineered: dict[str, float], personnel_id: str) -> list[dict[str, Any]]:

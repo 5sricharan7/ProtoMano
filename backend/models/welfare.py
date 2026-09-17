@@ -33,7 +33,10 @@ class InterventionCreate(BaseModel):
     intervention_type: str = Field(min_length=2, max_length=100)
     notes: str = Field(min_length=2, max_length=2000)
     owner: str = Field(default="Welfare officer", max_length=120)
-    status: Literal["NEW", "UNDER REVIEW", "SUPPORT INITIATED", "FOLLOW-UP", "RESOLVED", "Open", "In progress", "Closed"] = "NEW"
+    # Task 4G: the three canonical statuses were added so legacy serialization
+    # stays compatible with intervention documents written by the Task 4G
+    # endpoints (single shared db.interventions collection).
+    status: Literal["NEW", "UNDER REVIEW", "SUPPORT INITIATED", "FOLLOW-UP", "RESOLVED", "Open", "In progress", "Closed", "OPEN", "FOLLOW_UP", "CLOSED"] = "NEW"
     human_assessment: str = Field(default="Not yet recorded", max_length=2000)
     follow_up_date: str | None = Field(default=None, max_length=20)
 
@@ -615,3 +618,83 @@ class WelfareDecisionSupportResponse(BaseModel):
     welfare_recommendations: list[str]
     derived_outputs: list[str]
     assessed_at: datetime
+
+
+# --- Task 4G: Welfare Intervention & Action Tracking ---
+
+InterventionType = Literal[
+    "CHECK_IN",
+    "COUNSELLING_REFERRAL",
+    "REST_RECOMMENDATION",
+    "LEAVE_SUPPORT",
+    "MEDICAL_REFERRAL",
+    "OTHER",
+]
+
+InterventionStatus = Literal[
+    "OPEN",
+    "FOLLOW_UP",
+    "CLOSED",
+]
+
+
+class InterventionActionCreate(BaseModel):
+    """WELFARE_OFFICER — Create an intervention / welfare action for ONE
+    personnel.
+
+    ``personnel_id`` is deliberately NOT a body field: it is taken from the
+    URL path only, so a client can never re-direct an intervention to a
+    different personnel by tampering with the request body.  ``extra="forbid"``
+    rejects any unknown field (including attempted ``welfare_officer_id`` /
+    role / user-id smuggling) at the schema boundary.  The acting officer is
+    derived server-side from the authenticated token.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    intervention_type: InterventionType
+    reason: str = Field(min_length=2, max_length=300)
+    notes: str = Field(min_length=2, max_length=2000)
+    status: InterventionStatus = "OPEN"
+    follow_up_at: datetime | None = None
+    outcome: str | None = Field(default=None, max_length=500)
+    outcome_notes: str | None = Field(default=None, max_length=2000)
+
+
+class InterventionActionUpdate(BaseModel):
+    """WELFARE_OFFICER — Update the mutable lifecycle fields of an intervention.
+
+    At least one field must be supplied (an empty body is rejected).  Identity
+    fields (intervention_id, personnel_id, welfare_officer_id) can never be
+    supplied by the client.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: InterventionStatus | None = None
+    outcome: str | None = Field(default=None, max_length=500)
+    outcome_notes: str | None = Field(default=None, max_length=2000)
+    follow_up_at: datetime | None = None
+
+
+class InterventionAction(BaseModel):
+    """WELFARE_OFFICER — One stored welfare intervention on a personnel record.
+
+    ``welfare_officer_id`` is captured server-side from the authenticated token
+    at creation time.  Intervention documents written by the legacy Phase 3
+    endpoints are normalized on read: free-text legacy ``status`` maps onto the
+    closest Task 4G status and unknown action types map to ``OTHER``.
+    """
+
+    intervention_id: str
+    personnel_id: str
+    welfare_officer_id: str | None = None
+    created_at: datetime
+    intervention_type: InterventionType
+    reason: str | None = None
+    notes: str
+    status: InterventionStatus
+    follow_up_at: datetime | None = None
+    outcome: str | None = None
+    outcome_notes: str | None = None
+    updated_at: datetime | None = None
