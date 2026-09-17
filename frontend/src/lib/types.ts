@@ -1,5 +1,20 @@
 export type RiskBand = "Low" | "Moderate" | "High";
 
+export type UserRole = "PERSONNEL" | "WELFARE_OFFICER" | "COMMANDER";
+
+export interface AuthToken {
+  access_token: string;
+  token_type: string;
+  user_id: string;
+  username: string;
+  role: UserRole;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
 export interface ModelInfo {
   product_name: string;
   model_version: string;

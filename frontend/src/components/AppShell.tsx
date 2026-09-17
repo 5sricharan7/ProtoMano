@@ -1,7 +1,8 @@
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import { Activity, BarChart3, BrainCircuit, ChevronRight, Fingerprint, HeartHandshake, LogOut, Menu, ShieldCheck, Users, X } from "lucide-react";
 import { useState } from "react";
-import { clearDemoRole, getDemoRole, ROLE_LABELS } from "@/lib/demo";
+import { getAuthData } from "@/lib/auth";
+import { endSession } from "@/lib/session";
 
 const navItems = [
   { path: "/officer", label: "Welfare command", icon: Activity },
@@ -12,16 +13,22 @@ const navItems = [
   { path: "/ethics", label: "Privacy & ethics", icon: Fingerprint },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  PERSONNEL: "Personnel",
+  WELFARE_OFFICER: "Welfare Officer",
+  COMMANDER: "Commander",
+};
+
 export default function AppShell() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const role = getDemoRole() ?? "welfare-officer";
-  const canSeeCommand = role !== "personnel";
+  const authData = getAuthData();
+  const role = authData?.role ?? "WELFARE_OFFICER";
+  const username = authData?.username ?? "User";
+  const canSeeCommand = role !== "PERSONNEL";
 
   function signOut() {
-    clearDemoRole();
-    navigate("/login");
+    endSession("/login");
   }
 
   return (
