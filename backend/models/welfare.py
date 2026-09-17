@@ -538,3 +538,80 @@ class ExplanationUnavailable(BaseModel):
     personnel_id: str
     reason: str
     message: str
+
+
+# --- Task 4F: Risk + Trust Fusion & Safe Abstention ---
+
+DecisionSupportState = Literal[
+    "SUPPORTED",
+    "LIMITED_EVIDENCE",
+    "INSUFFICIENT_EVIDENCE",
+]
+
+
+class EvidenceQuality(BaseModel):
+    """WELFARE_OFFICER — Deterministic evidence-quality assessment for one
+    personnel record.
+
+    Derived from information already available in the production pipeline:
+    window completeness, temporal coverage, observation validity, data
+    recency, source reliability and consistency.  This is explicitly
+    NOT model confidence; it measures how much reliable evidence is
+    available for the model to reason over.
+
+    Every component weight and threshold is explicitly documented and
+    deterministic.  Absence of data is never treated as evidence of
+    improvement or deterioration.
+    """
+
+    score: float = Field(ge=0, le=100)
+    threshold: float = Field(ge=0, le=100)
+    label: Literal["Sufficient", "Limited", "Insufficient"]
+    basis: str
+    components: TrustComponents
+    temporal_coverage_weeks: int = Field(ge=0, le=4)
+    invalid_observations_detected: bool
+
+
+class WelfareDecisionSupportResponse(BaseModel):
+    """WELFARE_OFFICER — Comprehensive risk + trust fusion for ONE personnel.
+
+    Task 4F: synthesizes the existing Phase 4C prediction, 4D trajectory, and
+    4E explanation into a single decision-support envelope with explicit evidence
+    quality assessment and safe abstention.
+
+    The model output is NEVER silently modified by the trust layer.  When
+    evidence is insufficient, the system abstains (``decision_state`` =
+    ``INSUFFICIENT_EVIDENCE``) and provides sanitized evidence-quality
+    information rather than a misleading risk conclusion.
+
+    Access: WELFARE_OFFICER only.  The 44-feature vector, model filenames,
+    artifact paths, credentials and unnecessary raw personnel records are
+    never returned.
+    """
+
+    personnel_id: str
+    decision_state: DecisionSupportState
+    decision_basis: str
+
+    prediction_available: bool
+    predicted_band: RiskBand | None = None
+    risk_probability: float | None = None
+    class_probabilities: list[ClassProbability] | None = None
+    prediction_confidence: float | None = None
+    confidence_basis: str | None = None
+    top_contributing_factors: list[Contribution] | None = None
+
+    evidence_quality: EvidenceQuality
+    data_sufficiency: DataSufficiency
+
+    trajectory_available: bool
+    trend: Literal["increasing", "decreasing", "stable", "insufficient_data"] | None = None
+    early_warning: EarlyWarning | None = None
+
+    temporal_analysis_available: bool
+    what_changed: WhatChangedSummary | None = None
+
+    welfare_recommendations: list[str]
+    derived_outputs: list[str]
+    assessed_at: datetime

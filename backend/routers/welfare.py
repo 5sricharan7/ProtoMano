@@ -19,10 +19,12 @@ from lib.rbac_deps import require_any_role, require_personnel, require_welfare_o
 from lib.trajectory import build_personnel_trajectory
 from lib.welfare_prediction import WelfarePredictionUnavailable, predict_personnel_welfare
 from models.welfare import (
+    TrustComponents,
     DataSufficiency,
     DataTrust,
     DecisionSupport,
     EarlyWarning,
+    EvidenceQuality,
     Intervention,
     InterventionCreate,
     DemoPersonnel,
@@ -43,6 +45,7 @@ from models.welfare import (
     PredictionUnavailable,
     RecordResponse,
     TrajectoryPoint,
+    WelfareDecisionSupportResponse,
     WelfarePredictionResponse,
     WelfareTrajectoryResponse,
     ExplanationUnavailable,
@@ -217,6 +220,204 @@ def _decision_support(band: str, trust: DataTrust, direction: str) -> DecisionSu
         state="MONITOR",
         abstained=False,
         basis="Data trust is sufficient and the current model/trajectory signal does not require prompt review.",
+    )
+
+
+# --- Task 4F: Evidence Quality & Decision-Support Fusion ---
+
+
+EVIDENCE_QUALITY_THRESHOLD = 55.0
+MINIMUM_TEMPORAL_WEEKS = 2
+_WINDOW_WEEK_COUNT = 4
+
+
+def _invalid_observations(features: dict[str, float]) -> bool:
+    """Detect obviously invalid observations in the raw numeric family.
+
+    An observation is invalid when its ``__was_missing`` flag is 0 (observed)
+    and the value is NaN or outside a documented non-negative range.  This is
+    a lightweight sanity gate; it does NOT modify the prediction.
+    """
+    non_negative_features = {
+        "weekly_duty_hours",
+        "overtime_hours",
+        "days_since_last_rest",
+        "days_since_last_leave",
+        "leave_balance",
+        "sleep_hours_biometric",
+        "wellness_score_self_report",
+        "sleep_quality_score_self_report",
+    }
+    for name in non_negative_features:
+        flag = f"{name}__was_missing"
+        if flag in features and int(features[flag]) == 0:
+            value = features[name]
+            if isinstance(value, float) and (value != value):
+                return True
+            if isinstance(value, (int, float)) and value < 0:
+                return True
+    return False
+
+
+def compute_evidence_quality(
+    data_sufficiency: dict[str, Any],
+    features: dict[str, float] | None,
+    model_prediction_available: bool,
+) -> EvidenceQuality:
+    """Deterministic evidence-quality assessment using information already
+    available from the production pipeline.
+
+    REUSES the existing Data Trust heuristic (:func:`_data_trust`) for the
+    feature-level components (completeness, recency, source reliability,
+    consistency); it never recomputes or replaces that engine.  To that,
+    Task 4F adds two genuinely new evidence dimensions the existing engine
+    does not cover:
+
+      - temporal_coverage: 30%  (observed weeks / 4-week window size)
+      - observation_validity: 20%  (detected invalid/negative values)
+
+    remaining 50% comes from the EXISTING Data Trust score.  There are no
+    hidden constants: weights, window size and labels are documented below.
+
+    Thresholds and labels:
+      - score >= 70 → Sufficient
+      - score >= 45 → Limited
+      - score <  45 → Insufficient
+
+    The officer-facing label is then CAPPED so it can never overstate quality:
+    when the layer's own documented abstention gates fail (prediction
+    unavailable, Data Trust below the abstention floor, or zero observed
+    weeks) the label is forced to ``Insufficient``; when only downgrade-able
+    limitations exist (fewer than MINIMUM_TEMPORAL_WEEKS observed weeks, or
+    invalid observations) it is at most ``Limited``.  A composite score alone
+    must never read "Sufficient" while the decision layer abstains on that
+    same evidence.
+
+    When no engineered features exist (model prediction unavailable) the Data
+    Trust component defaults to 0 — absence of evidence is never scored as
+    high trust.  Every component is deterministic, explainable, isolated from
+    the trained model, and does NOT modify the model prediction.
+    """
+    weeks_with_data = len(data_sufficiency.get("weeks_with_data", []))
+    week_count = max(data_sufficiency.get("week_count", 0), _WINDOW_WEEK_COUNT)
+
+    if features is not None:
+        existing_trust = _data_trust(features)
+        trust_score = existing_trust.score
+        trust_components = existing_trust.components
+        has_invalid = _invalid_observations(features)
+    else:
+        # No engineered evidence could be produced; absence of evidence is
+        # never scored as high trust.
+        trust_score = 0.0
+        trust_components = TrustComponents(
+            completeness=0.0, recency=0.0, source_reliability=0.0, consistency=0.0
+        )
+        has_invalid = False
+
+    temporal_coverage = round(100.0 * min(weeks_with_data, week_count) / week_count, 1)
+    validity = 50.0 if has_invalid else 100.0
+
+    score = round(0.50 * trust_score + 0.30 * temporal_coverage + 0.20 * validity, 1)
+    label = (
+        "Sufficient" if score >= 70
+        else "Limited" if score >= 45
+        else "Insufficient"
+    )
+    # Cap the label by the same documented gates that drive the decision state,
+    # so the summary can never overstate quality on evidence the layer abstains
+    # from (see module docstring on label semantics).
+    if (
+        not model_prediction_available
+        or trust_score < TRUST_ABSTENTION_THRESHOLD
+        or weeks_with_data < 1
+    ):
+        label = "Insufficient"
+    elif weeks_with_data < MINIMUM_TEMPORAL_WEEKS or has_invalid:
+        if label == "Sufficient":
+            label = "Limited"
+
+    basis = (
+        "Evidence quality is a deterministic blend of the existing Data Trust "
+        f"score ({trust_score:.1f}, 50%), temporal coverage ({temporal_coverage:.1f}% "
+        f"= {weeks_with_data}/{week_count} weeks with data, 30%) and observation "
+        f"validity ({'degraded' if has_invalid else 'ok'}, 20%). It reuses the "
+        "existing Data Trust engine for feature-level completeness/recency/source/"
+        "consistency and is explicitly NOT model confidence."
+    )
+    if not model_prediction_available:
+        basis += (
+            " Model prediction is unavailable; evidence quality reflects stored "
+            "data only (Data Trust defaults to 0 because no engineered feature "
+            "evidence exists)."
+        )
+
+    return EvidenceQuality(
+        score=score,
+        threshold=EVIDENCE_QUALITY_THRESHOLD,
+        label=label,
+        basis=basis,
+        components=trust_components,
+        temporal_coverage_weeks=weeks_with_data,
+        invalid_observations_detected=has_invalid,
+    )
+
+
+def _compute_decision_support_4f(
+    evidence_quality: EvidenceQuality,
+    data_trust_score: float,
+    prediction_available: bool,
+    predicted_band: str | None,
+) -> tuple[str, str]:
+    """Task 4F decision-support state from documented, deterministic rules.
+
+    States:
+      - INSUFFICIENT_EVIDENCE: the system ABSTAINS.  No misleading risk
+        conclusion is presented.  Triggered when the model prediction is
+        unavailable, when the existing Data Trust score is below the
+        actionability threshold (60), or when temporal coverage is zero.
+      - LIMITED_EVIDENCE: model output is present and trusted, but the
+        evidence basis is thin (fewer than two observed weeks, or detected
+        invalid observations).  The output is presented with an explicit
+        evidence-availability caveat.
+      - SUPPORTED: sufficient trusted evidence (at least two observed weeks,
+        no data-quality defects) supports presenting the model output.
+
+    Rules are applied in a fixed order and never modify the model prediction.
+    """
+    if not prediction_available:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            "Model prediction is unavailable for this personnel; the system "
+            "abstains and presents no risk conclusion. Verify stored data "
+            "before drawing any welfare conclusion.",
+        )
+    if data_trust_score < TRUST_ABSTENTION_THRESHOLD:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            f"Data Trust {data_trust_score:.1f} is below the {TRUST_ABSTENTION_THRESHOLD:.0f} "
+            "actionability threshold; evidence is not sufficiently reliable for "
+            "AI-assisted decision support. The system abstains rather than "
+            "presenting a misleading risk conclusion.",
+        )
+    if evidence_quality.temporal_coverage_weeks < MINIMUM_TEMPORAL_WEEKS:
+        return (
+            "LIMITED_EVIDENCE",
+            f"Only {evidence_quality.temporal_coverage_weeks} week(s) of temporal data "
+            f"are available (minimum {MINIMUM_TEMPORAL_WEEKS} for full evidence); "
+            "model output is presented with an explicit evidence-availability caveat.",
+        )
+    if evidence_quality.invalid_observations_detected:
+        return (
+            "LIMITED_EVIDENCE",
+            "Invalid observations were detected in the stored data; model output "
+            "is presented with an explicit data-quality caveat.",
+        )
+    return (
+        "SUPPORTED",
+        f"Evidence quality is sufficient (Data Trust {data_trust_score:.1f} "
+        f"and {evidence_quality.temporal_coverage_weeks} weeks of temporal data support "
+        "AI-assisted decision support). Model output is presented to the welfare officer.",
     )
 
 
@@ -978,3 +1179,199 @@ async def personnel_welfare_explanation(
             detail="Model-backed welfare prediction is temporarily unavailable",
         ) from exc
     return WelfareExplanationResponse(**payload)
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-decision-support",
+    response_model=WelfareDecisionSupportResponse,
+)
+async def personnel_welfare_decision_support(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> WelfareDecisionSupportResponse:
+    """WELFARE_OFFICER — Risk + Trust Fusion & Safe Abstention for ONE personnel.
+
+    Task 4F: synthesizes the existing Phase 4C prediction, 4D trajectory, and
+    4E explanation into a single comprehensive decision-support envelope with
+    explicit evidence-quality assessment and safe abstention.
+
+    The model output is NEVER silently modified by the trust layer.  When
+    evidence quality is insufficient, the system abstains and provides sanitized
+    evidence-quality information rather than a misleading risk conclusion.
+
+    Flow:
+      1. Attempt the existing 4C prediction (stored 4-week window -> canonical
+         44-feature engineering -> calibrated LightGBM).
+      2. If prediction succeeds: compute trajectory, explanation and evidence
+         quality from the full pipeline outputs.
+      3. If prediction fails: compute evidence quality from stored data alone
+         (model output fields are absent but the abstention/evidence assessment
+         is still provided).
+      4. Fusion: documented decision rules → SUPPORTED / LIMITED_EVIDENCE /
+         INSUFFICIENT_EVIDENCE.
+
+    Access: WELFARE_OFFICER only.  The 44-feature vector, model filenames,
+    artifact paths, credentials and unnecessary raw personnel records are
+    never returned.  Insufficient or unavailable data yields a safe structured
+    abstention envelope; model/artifact failures surface as a sanitized 503.
+    """
+    _ensure_welfare_engine_ready()
+
+    run_at = utc_now()
+
+    # --- Phase 4C: Prediction (reuses existing service, no duplication) ---
+    prediction_available = True
+    window: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    features: dict[str, float] | None = None
+
+    try:
+        window, result, features = await predict_personnel_welfare(
+            personnel_id, current_user, engine
+        )
+    except WelfarePredictionUnavailable:
+        prediction_available = False
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+
+    # --- Phase 4D: Trajectory (reuses existing service, no duplication) ---
+    trajectory_available = False
+    trend: str | None = None
+    early_warning: dict[str, Any] | None = None
+
+    if prediction_available and result is not None:
+        try:
+            trajectory_payload = await build_personnel_trajectory(
+                personnel_id, current_user, engine
+            )
+            trajectory_available = True
+            trend = trajectory_payload["trend"]
+            early_warning = trajectory_payload["early_warning"]
+        except (WelfarePredictionUnavailable, ModelArtifactError):
+            pass  # trajectory is optional enrichment; absence is documented
+
+    # --- Phase 4E: Explanation (reuses existing service, no duplication) ---
+    temporal_analysis_available = False
+    what_changed: dict[str, Any] | None = None
+
+    if prediction_available and result is not None and features is not None and window is not None:
+        try:
+            explanation_payload = await build_welfare_explanation(
+                personnel_id, current_user, engine
+            )
+            temporal_analysis_available = True
+            what_changed = explanation_payload["what_changed"]
+        except (WelfarePredictionUnavailable, ModelArtifactError):
+            pass  # temporal analysis is optional enrichment; absence is documented
+
+    # --- Data sufficiency (from the 4C window or fallback) ---
+    if window is not None:
+        data_sufficiency_obj = DataSufficiency(
+            week_count=window["week_count"],
+            weeks_with_data=window["weeks_with_data"],
+            latest_observation_date=window["latest_observation_date"],
+            basis=(
+                "The 4-week raw window ends at the latest stored observation "
+                "(causal, never a future date); weeks without data stay missing "
+                "and are handled by the canonical causal imputation path."
+            ),
+        )
+    else:
+        data_sufficiency_obj = DataSufficiency(
+            week_count=0,
+            weeks_with_data=[],
+            latest_observation_date=run_at,
+            basis="No usable welfare data was available for this personnel; "
+                  "evidence quality reflects the absence of stored observations.",
+        )
+
+    # --- Task 4F: Evidence Quality (reuses existing Data Trust, adds the
+    # temporal-coverage and observation-validity dimensions) ---
+    # Trust calculation is defensive: a failure must degrade to safe
+    # abstention, never to a fabricated trust score or a misleading risk
+    # conclusion.  No traceback or internal detail is exposed.
+    evidence_quality_valid = True
+    try:
+        evidence_quality = compute_evidence_quality(
+            {
+                "week_count": data_sufficiency_obj.week_count,
+                "weeks_with_data": data_sufficiency_obj.weeks_with_data,
+            },
+            features,
+            model_prediction_available=prediction_available,
+        )
+        data_trust_score = _data_trust(features).score if features is not None else 0.0
+    except Exception:
+        evidence_quality_valid = False
+        evidence_quality = EvidenceQuality(
+            score=0.0,
+            threshold=EVIDENCE_QUALITY_THRESHOLD,
+            label="Insufficient",
+            basis="Evidence quality could not be reliably computed for this personnel; the system abstains.",
+            components=TrustComponents(
+                completeness=0.0, recency=0.0, source_reliability=0.0, consistency=0.0
+            ),
+            temporal_coverage_weeks=data_sufficiency_obj.week_count,
+            invalid_observations_detected=False,
+        )
+        data_trust_score = 0.0
+
+    # --- Task 4F: Decision Support Fusion (deterministic documented rules) ---
+    predicted_band = result["predicted_band"] if result else None
+    if evidence_quality_valid:
+        decision_state, decision_basis = _compute_decision_support_4f(
+            evidence_quality, data_trust_score, prediction_available, predicted_band
+        )
+    else:
+        decision_state, decision_basis = (
+            "INSUFFICIENT_EVIDENCE",
+            "Evidence quality could not be reliably computed; the system "
+            "abstains rather than presenting a risk conclusion.",
+        )
+
+    # --- Welfare recommendations (from existing helper when prediction available) ---
+    welfare_recommendations = _recommendations(predicted_band) if predicted_band else [
+        "No model-backed prediction is available for this personnel.",
+        "Verify stored welfare data and ensure observations are current before drawing conclusions.",
+        "Do not treat absence of evidence as evidence of improvement or deterioration.",
+    ]
+
+    # --- Derived outputs ---
+    derived = [
+        "Evidence quality reuses the existing Data Trust engine and adds temporal coverage and observation validity; it is NOT model confidence.",
+        "The model prediction is NEVER modified by the evidence quality assessment; insufficient evidence results in safe abstention, not altered risk signals.",
+        "Absence of data is never treated as evidence of improvement or deterioration.",
+        "Trajectory and temporal analysis are optional enrichments from the existing Phase 4D and 4E services.",
+    ]
+    if not prediction_available:
+        derived.append("The model prediction is unavailable; evidence quality reflects stored data only.")
+    if trend is not None:
+        derived.append("The risk trajectory and early warning are auditable platform rules over the calibrated model's outputs — not additional model predictions.")
+    if what_changed is not None:
+        derived.append("What Changed compares only factors observed in both periods; missing data is never reported as improvement or deterioration.")
+
+    return WelfareDecisionSupportResponse(
+        personnel_id=personnel_id,
+        decision_state=decision_state,
+        decision_basis=decision_basis,
+        prediction_available=prediction_available,
+        predicted_band=result["predicted_band"] if result else None,
+        risk_probability=float(result["risk_probability"]) if result else None,
+        class_probabilities=result.get("class_probabilities") if result else None,
+        prediction_confidence=float(result["prediction_confidence"]) if result else None,
+        confidence_basis=result.get("confidence_basis") if result else None,
+        top_contributing_factors=result.get("top_contributing_factors") if result else None,
+        evidence_quality=evidence_quality,
+        data_sufficiency=data_sufficiency_obj,
+        trajectory_available=trajectory_available,
+        trend=trend,
+        early_warning=EarlyWarning(**early_warning) if early_warning else None,
+        temporal_analysis_available=temporal_analysis_available,
+        what_changed=what_changed,
+        welfare_recommendations=welfare_recommendations,
+        derived_outputs=derived,
+        assessed_at=run_at,
+    )
