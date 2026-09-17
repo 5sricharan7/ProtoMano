@@ -1177,5 +1177,4 @@ The goal is not to replace human judgment.
 The goal is to help welfare teams notice meaningful changes earlier and make better-informed follow-up decisions.
 
 ❤️ Built for Smart India Hackathon 2026
-
 Manobal-AI — Turning Welfare Signals into Human-Centered Support
