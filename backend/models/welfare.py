@@ -400,3 +400,40 @@ class PredictionUnavailable(BaseModel):
     personnel_id: str
     reason: str
     message: str
+
+
+# --- Task 4D: Welfare risk trajectory and early warning (Welfare Officer) ---
+
+
+class PredictionSnapshot(BaseModel):
+    """One minimized trajectory point.
+
+    Carries only the model's band and probability for a prediction; the
+    44-feature vector, class probabilities and internal confidence material are
+    deliberately excluded from the officer trajectory envelope.
+    """
+
+    assessed_at: datetime
+    predicted_band: RiskBand
+    risk_probability: float
+
+
+class WelfareTrajectoryResponse(BaseModel):
+    """WELFARE_OFFICER — Risk trajectory and early warning for ONE personnel.
+
+    Combines the Task 4C live prediction with the stored assessment history
+    into a chronological risk trajectory.  ``trend`` is ``increasing`` /
+    ``decreasing`` / ``stable`` / ``insufficient_data`` (a direction requires at
+    least two chronologically ordered points; missing temporal evidence never
+    fabricates one).  ``early_warning`` is a TEMPORAL signal — it can never fire
+    from a single assessment or missing history.
+    """
+
+    personnel_id: str
+    trend: Literal["increasing", "decreasing", "stable", "insufficient_data"]
+    early_warning: EarlyWarning
+    history: list[PredictionSnapshot]
+    prediction: PredictionSnapshot
+    evidence_basis: str
+    assessed_at: datetime
+    derived_outputs: list[str]

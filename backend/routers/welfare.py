@@ -15,6 +15,7 @@ from lib.feature_engineering import (
 from lib.history import build_four_week_window, get_personnel_history
 from lib.inference import InferenceEngine, ModelArtifactError, utc_now
 from lib.rbac_deps import require_any_role, require_personnel, require_welfare_officer
+from lib.trajectory import build_personnel_trajectory
 from lib.welfare_prediction import WelfarePredictionUnavailable, predict_personnel_welfare
 from models.welfare import (
     DataSufficiency,
@@ -37,10 +38,12 @@ from models.welfare import (
     PersonnelRecord,
     PredictRequest,
     PredictionResponse,
+    PredictionSnapshot,
     PredictionUnavailable,
     RecordResponse,
     TrajectoryPoint,
     WelfarePredictionResponse,
+    WelfareTrajectoryResponse,
 )
 
 
@@ -869,3 +872,56 @@ async def personnel_welfare_prediction(
             "Welfare recommendations are auditable platform rules, not additional model predictions.",
         ],
     )
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-trajectory",
+    response_model=Union[PredictionUnavailable, WelfareTrajectoryResponse],
+)
+async def personnel_welfare_trajectory(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> Union[PredictionUnavailable, WelfareTrajectoryResponse]:
+    """WELFARE_OFFICER — Risk trajectory and early warning for ONE personnel.
+
+    Task 4D: combines the Task 4C welfare prediction with the STORED assessment
+    confirmation history into a chronological risk trajectory and temporal
+    early-warning signal.
+
+    Trajectory rules:
+    - ``trend`` is ``increasing`` / ``decreasing`` / ``stable`` /
+      ``insufficient_data``, computed from the two newest chronologically
+      ordered points on the model's High-class probability (`exactly how` in
+      ``lib.trajectory``).
+    - ``early_warning`` is strictly TEMPORAL: it requires at least two
+      chronologically ordered assessments and can never fire from a single
+      assessment or missing history (no false alarms from missing data).
+      ``human_review`` = sustained (two consecutive) High band; ``watch`` =
+      rising risk.
+    - Stored assessments dated after the current run are excluded by a causal
+      cut-off, so future-dated records can never flip the trend.
+    - The same run provides the live prediction via ``predict_personnel_welfare``
+      (which re-checks the WELFARE_OFFICER role, defense in depth).
+
+    Access: WELFARE_OFFICER only — PERSONNEL (including for themselves) and
+    COMMANDER (aggregate-only) are blocked by the role gate.  Stored history
+    snapshots carry band + probability only; the 44-feature vector, model
+    filenames, artifact paths and credentials are never returned.  No stored
+    data yields a structured ``PredictionUnavailable`` envelope.
+    """
+    _ensure_welfare_engine_ready()
+    try:
+        payload = await build_personnel_trajectory(personnel_id, current_user, engine)
+    except WelfarePredictionUnavailable as exc:
+        return PredictionUnavailable(
+            status="insufficient_data",
+            personnel_id=personnel_id,
+            reason=exc.reason,
+            message=exc.message,
+        )
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+    return WelfareTrajectoryResponse(**payload)
