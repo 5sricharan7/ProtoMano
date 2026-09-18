@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Activity, BarChart3, BrainCircuit, ChevronRight, Fingerprint, HeartHandshake, LogOut, Menu, ShieldCheck, Users, X } from "lucide-react";
+import { Activity, BrainCircuit, ChevronRight, Fingerprint, HeartHandshake, LogOut, Menu, ShieldCheck, Users, X } from "lucide-react";
 import { useState } from "react";
 import { getAuthData } from "@/lib/auth";
 import { endSession } from "@/lib/session";
@@ -9,7 +9,6 @@ const navItems = [
   { path: "/personnel", label: "My welfare view", icon: HeartHandshake },
   { path: "/analysis", label: "AI analysis", icon: BrainCircuit },
   { path: "/interventions", label: "Intervention desk", icon: ShieldCheck },
-  { path: "/insights", label: "Organizational insights", icon: BarChart3 },
   { path: "/ethics", label: "Privacy & ethics", icon: Fingerprint },
 ];
 
@@ -24,7 +23,6 @@ export default function AppShell() {
   const [open, setOpen] = useState(false);
   const authData = getAuthData();
   const role = authData?.role ?? "WELFARE_OFFICER";
-  const username = authData?.username ?? "User";
   const canSeeCommand = role !== "PERSONNEL";
 
   function signOut() {

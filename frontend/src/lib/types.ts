@@ -203,3 +203,76 @@ export interface DemoSeedResponse {
   seeded_count: number;
   message: string;
 }
+
+// --- Welfare brief APIs (Task 4E explanation + Task 4G interventions) ---
+
+export interface ExplanationFactor {
+  feature: string;
+  display_name: string;
+  contribution: number;
+  direction: "increases" | "decreases" | "neutral";
+  impact_summary: string;
+}
+
+export interface BriefWhatChange {
+  feature: string;
+  display_name: string;
+  previous: number;
+  current: number;
+  delta: number;
+  change: "increased" | "decreased";
+  contribution_direction: "increases" | "decreases" | "neutral" | "unknown";
+  impact: "increases_risk_signal" | "decreases_risk_signal" | "unknown";
+}
+
+export interface BriefWhatChangedSummary {
+  status: "available" | "insufficient_data";
+  comparison?: "prior_assessment" | "prior_week" | null;
+  basis: string;
+  no_material_change?: boolean;
+  changes: BriefWhatChange[];
+}
+
+export interface WelfareExplanationResponse {
+  personnel_id: string;
+  explanation_status: "available" | "explanation_unavailable";
+  status_message: string;
+  prediction: { predicted_band: RiskBand; risk_probability: number };
+  explanation_method: "native_feature_contributions";
+  top_contributing_factors: ExplanationFactor[];
+  what_changed: BriefWhatChangedSummary;
+  evidence_basis: string;
+  derived_outputs: string[];
+  assessed_at: string;
+}
+
+export interface ExplanationUnavailable {
+  status: "insufficient_data";
+  personnel_id: string;
+  reason: string;
+  message: string;
+}
+
+export type InterventionActionStatus = "OPEN" | "FOLLOW_UP" | "CLOSED";
+export type InterventionActionType =
+  | "CHECK_IN"
+  | "COUNSELLING_REFERRAL"
+  | "REST_RECOMMENDATION"
+  | "LEAVE_SUPPORT"
+  | "MEDICAL_REFERRAL"
+  | "OTHER";
+
+export interface InterventionAction {
+  intervention_id: string;
+  personnel_id: string;
+  welfare_officer_id?: string | null;
+  created_at: string;
+  intervention_type: InterventionActionType;
+  reason?: string | null;
+  notes: string;
+  status: InterventionActionStatus;
+  follow_up_at?: string | null;
+  outcome?: string | null;
+  outcome_notes?: string | null;
+  updated_at?: string | null;
+}
