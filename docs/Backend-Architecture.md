@@ -1,52 +1,85 @@
-Manobal-AI --- Backend Architecture
+<div align="center">
 
-AI-Assisted Welfare Signal & Human-in-the-Loop Decision Support Backend
+# ⚙️ Manobal-AI — Backend Architecture
 
-Manobal-AI is a welfare-oriented decision-support platform designed for
-uniformed personnel.
-Its backend is responsible for secure data handling, canonical feature
-engineering, AI inference, historical analysis, data-trust evaluation,
-risk/trust fusion, welfare recommendations, and recording human-reviewed
-interventions.
+### AI-Assisted Welfare Signal & Human-in-the-Loop Decision Support Backend
 
-Core Principle: AI should assist. Humans should decide.
+<p>
+  <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/Python-3.x-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/MongoDB-Persistence-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
+  <img src="https://img.shields.io/badge/LightGBM-ML%20Inference-2E8B57?style=for-the-badge" alt="LightGBM"/>
+</p>
 
-📌 Backend Overview
+<p>
+  <img src="https://img.shields.io/badge/Pydantic-Validation-E92063?style=flat-square" alt="Pydantic"/>
+  <img src="https://img.shields.io/badge/Motor-MongoDB%20Driver-47A248?style=flat-square" alt="Motor"/>
+  <img src="https://img.shields.io/badge/Uvicorn-ASGI-499848?style=flat-square" alt="Uvicorn"/>
+  <img src="https://img.shields.io/badge/Pytest-Testing-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="Pytest"/>
+</p>
 
-The Manobal-AI backend is built with FastAPI and acts as the central
-application and inference layer between the React frontend, MongoDB, and
-the serialized machine-learning artifacts.
+> **AI should assist. Humans should decide.**
+
+</div>
+
+---
+
+## 📌 1. Backend Overview
+
+Manobal-AI is a welfare-oriented decision-support platform designed for uniformed personnel.
+
+Its backend is responsible for:
+
+- Secure and controlled data handling
+- Canonical feature engineering
+- Machine-learning inference
+- Historical assessment analysis
+- Data-trust evaluation
+- Risk/trust fusion
+- Welfare-oriented recommendations
+- Recording human-reviewed interventions
+
+The backend is built with **FastAPI** and acts as the central application and inference layer between the React frontend, MongoDB, and serialized machine-learning artifacts.
+
+### Core Architectural Principle
+
+```text
+┌──────────────────────────────────────────────┐
+│                                              │
+│              🤖 AI = SIGNAL                  │
+│                                              │
+│                    ↓                         │
+│                                              │
+│           🧑‍💼 HUMAN = DECISION              │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+The backend is therefore designed to provide **evidence and context**, while keeping welfare follow-up under human control.
+
+---
+
+# 🧭 2. Backend Responsibilities
 
 The backend follows a clear separation of responsibilities:
 
-API Layer --- exposes REST endpoints to the frontend.
+| Layer | Responsibility |
+|---|---|
+| 🌐 API Layer | Exposes REST endpoints and handles HTTP communication |
+| 🛡️ Validation Layer | Validates requests and rejects unsupported inputs |
+| 🧩 Feature Engineering | Converts raw weekly records into canonical 44-feature input |
+| 🧠 ML Inference | Loads preprocessing/model artifacts and generates risk probabilities |
+| 🔍 Decision Support | Combines model output with trust and historical context |
+| 📈 Historical Intelligence | Analyzes previous assessments and trajectory |
+| 💡 Recommendation | Generates rule-based welfare-oriented recommendations |
+| 🗄️ Persistence | Stores personnel, assessments and intervention/review records |
+| 🧑‍💼 Human Oversight | Keeps the welfare officer in control of follow-up actions |
 
-Validation Layer --- validates incoming requests and rejects
-unsupported/pre-engineered inputs.
+---
 
-Feature Engineering Layer --- converts raw weekly welfare
-records into the canonical 44-feature vector.
+# 🏗️ 3. High-Level Backend Architecture
 
-ML Inference Layer --- loads the calibrated LightGBM model and
-preprocessing artifacts and generates risk probabilities.
-
-Decision-Support Layer --- combines model output with data trust
-and historical context.
-
-Historical Intelligence Layer --- analyzes previous assessments
-and trajectory.
-
-Recommendation Layer --- generates rule-based welfare-oriented
-recommendations.
-
-Persistence Layer --- stores personnel, assessments, and
-intervention/review records in MongoDB.
-
-Human Oversight Layer --- keeps the welfare officer in control
-of any follow-up action.
-
-🏗️ High-Level Backend Architecture
-
+```text
                          ┌──────────────────────────┐
                          │      React Frontend      │
                          │     Vite + TypeScript    │
@@ -56,9 +89,9 @@ of any follow-up action.
                                       │
                                       ▼
                     ┌──────────────────────────────────┐
-                    │        FastAPI Backend            │
+                    │         ⚡ FastAPI Backend        │
                     │                                  │
-                    │  API Routes / Request Validation │
+                    │ API Routes / Request Validation  │
                     └───────────────┬──────────────────┘
                                     │
               ┌─────────────────────┼─────────────────────┐
@@ -102,87 +135,146 @@ of any follow-up action.
                                    ▼
                          ┌────────────────────┐
                          │ Welfare Officer    │
-                         │ Human Review       │
+                         │ 🧑‍💼 Human Review   │
                          └─────────┬──────────┘
                                    │
                                    ▼
                          ┌────────────────────┐
-                         │ Intervention /    │
-                         │ Follow-up Record  │
+                         │ Intervention /     │
+                         │ Follow-up Record   │
                          └─────────┬──────────┘
                                    │
                                    ▼
                          ┌────────────────────┐
-                         │     MongoDB        │
+                         │      MongoDB       │
                          └────────────────────┘
+```
 
-1. Backend Design Goals
+---
 
-The backend architecture is designed around the following goals:
+# 🎯 4. Backend Design Goals
 
-🔹 1. Secure Data Processing
+## 🔹 4.1 Secure Data Processing
 
-Personnel welfare data should remain within the controlled backend
-boundary instead of being processed directly inside the browser.
+Personnel welfare data should remain within the controlled backend boundary instead of being processed directly inside the browser.
 
-🔹 2. Canonical ML Input
+```text
+Browser
+   │
+   ▼
+Controlled API
+   │
+   ▼
+Backend
+   │
+   ├── Validation
+   ├── Feature Engineering
+   ├── ML Inference
+   └── Persistence
+```
 
-The frontend sends raw weekly records. The backend derives the model
-input using the canonical feature-engineering pipeline.
+---
 
-This prevents clients from manually supplying arbitrary pre-engineered
-model vectors.
+## 🔹 4.2 Canonical ML Input
 
-🔹 3. Explainable Decision Support
+The frontend sends **raw weekly records**.
 
-The backend does not return only a prediction. It combines:
+The backend derives the model input using the canonical feature-engineering pipeline.
 
-calibrated class probabilities
+```text
+Raw Records
+     ↓
+Server-Side Feature Engineering
+     ↓
+Canonical 44-Feature Vector
+     ↓
+Preprocessing
+     ↓
+LightGBM
+```
 
-model feature contributions when available
+This prevents clients from manually supplying arbitrary pre-engineered model vectors.
 
-data-trust information
+---
 
-historical trajectory
+## 🔹 4.3 Explainable Decision Support
 
-change detection
+The backend does not return only a prediction.
 
-risk/trust fusion
+It can combine:
 
-welfare-oriented recommendations
+- Calibrated class probabilities
+- Model feature contributions when available
+- Data-trust information
+- Historical trajectory
+- Change detection
+- Risk/trust fusion
+- Welfare-oriented recommendations
 
-🔹 4. Human-in-the-Loop Operation
+```text
+Model Output
+     +
+Data Trust
+     +
+Historical Context
+     +
+Observed Changes
+     ↓
+Contextual Decision Support
+```
 
-The backend provides signals to a welfare officer rather than
-autonomously taking welfare or disciplinary action.
+---
 
-🔹 5. Modular Architecture
+## 🔹 4.4 Human-in-the-Loop Operation
 
-API routing, inference, feature engineering, database operations, and
-decision-support logic are kept as separate responsibilities so that the
-system can evolve without rewriting the entire backend.
+The backend provides signals to a welfare officer rather than autonomously taking welfare or disciplinary action.
 
-2. Backend Technology Stack
+```text
+AI Analysis
+     ↓
+Risk Signal
+     ↓
+Decision Support
+     ↓
+Human Review
+     ↓
+Follow-Up / Intervention
+```
 
-Layer                  Technology
+---
 
-Backend Framework      FastAPI
-Language               Python
-Database               MongoDB
-MongoDB Driver         Motor
-API Format             REST / JSON
-ML Model               Calibrated LightGBM
-Preprocessing          Serialized preprocessing pipeline
-Validation / Schemas   Pydantic
-Server                 Uvicorn
-Testing                Pytest
-Configuration          Environment variables / .env
-Frontend Consumer      React + Vite + TypeScript
+## 🔹 4.5 Modular Architecture
 
-3. Backend Layer Architecture
+API routing, inference, feature engineering, database operations, historical intelligence, and decision-support logic remain separate responsibilities.
 
-The backend can be understood as six logical layers.
+This allows the backend to evolve without rewriting the complete application.
 
+---
+
+# 🧰 5. Backend Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Backend Framework | **FastAPI** |
+| Language | **Python** |
+| Database | **MongoDB** |
+| MongoDB Driver | **Motor** |
+| API Format | **REST / JSON** |
+| ML Model | **Calibrated LightGBM** |
+| Preprocessing | **Serialized preprocessing pipeline** |
+| Validation / Schemas | **Pydantic** |
+| Server | **Uvicorn** |
+| Testing | **Pytest** |
+| Configuration | **Environment variables / `.env`** |
+| Frontend Consumer | **React + Vite + TypeScript** |
+
+---
+
+# 🧩 6. Backend Layer Architecture
+
+The backend can be understood as six logical layers:
+
+```text
 ┌──────────────────────────────────────────────┐
 │                 API Layer                    │
 │ FastAPI routes, request/response handling    │
@@ -212,31 +304,63 @@ The backend can be understood as six logical layers.
 │             Persistence Layer                │
 │ MongoDB personnel, assessments, reviews      │
 └──────────────────────────────────────────────┘
+```
 
-4. API Layer
+### Layer Contract
+
+```text
+API
+ ↓
+Validation
+ ↓
+Domain / Feature Engineering
+ ↓
+Inference
+ ↓
+Decision Support
+ ↓
+Persistence
+```
+
+The logical layers are separated by responsibility even where the current prototype keeps implementation relatively compact.
+
+---
+
+# 🌐 7. API Layer
 
 FastAPI provides the HTTP interface consumed by the React frontend.
 
 The API layer is responsible for:
 
-receiving requests
+- Receiving requests
+- Validating payloads
+- Calling application logic
+- Returning structured JSON responses
+- Handling errors
+- Keeping model execution on the server
 
-validating payloads
+### Request Boundary
 
-calling application services
+```text
+React Frontend
+      │
+      │ REST / JSON
+      ▼
+FastAPI
+      │
+      ▼
+Application Services
+```
 
-returning structured JSON responses
+The frontend does **not** execute the LightGBM model.
 
-handling errors
+---
 
-keeping model execution on the server
+# 🔄 8. Core Backend Request Flow
 
-The frontend does not execute the LightGBM model.
+A typical AI-analysis request follows this sequence:
 
-5. Core Backend Request Flow
-
-A typical AI analysis request follows this sequence:
-
+```text
 Frontend
    │
    │ POST /api/predict
@@ -279,27 +403,48 @@ Structured JSON Response
    │
    ▼
 Frontend Dashboard
+```
 
-6. Server-Side Feature Engineering
+---
 
-One of the most important backend design decisions is that feature
-engineering is performed on the server.
+# 🧪 9. Request Validation
 
-The client submits raw weekly welfare records rather than a precomputed
-ML vector.
+Validation occurs before model inference.
 
-Example
+```text
+Incoming Request
+       │
+       ▼
+Pydantic / Request Validation
+       │
+       ├── Valid ──────► Feature Engineering
+       │
+       └── Invalid ────► Error Response
+```
 
+The validation boundary helps ensure that unsupported input structures do not reach the inference pipeline.
+
+---
+
+# 🧩 10. Server-Side Feature Engineering
+
+One of the most important backend design decisions is that feature engineering is performed on the server.
+
+The client submits raw weekly welfare records rather than a precomputed ML vector.
+
+### Feature Engineering Flow
+
+```text
 Raw Weekly Records
         │
         ▼
 Backend Feature Engineering
         │
-        ├── Aggregate signals
-        ├── Temporal features
-        ├── Workload indicators
-        ├── Leave / activity indicators
-        └── Other canonical transformations
+        ├── Aggregate Signals
+        ├── Temporal Features
+        ├── Workload Indicators
+        ├── Leave / Activity Indicators
+        └── Other Canonical Transformations
         │
         ▼
 44 Numeric Features
@@ -309,36 +454,35 @@ Model Preprocessing
         │
         ▼
 LightGBM
+```
 
-Why this matters
+### Why this matters
 
 This architecture:
 
-keeps the feature definition centralized
+- Centralizes feature definitions
+- Reduces client-side manipulation
+- Preserves training/inference consistency
+- Makes model upgrades easier
+- Prevents arbitrary pre-engineered vectors from being submitted by the UI
 
-reduces client-side manipulation
+The backend rejects unsupported pre-engineered client vectors and expects the canonical raw-record format.
 
-ensures training/inference consistency
+---
 
-makes model upgrades easier
+# 🔢 11. 44-Feature Inference Contract
 
-prevents arbitrary pre-engineered vectors from being submitted by
-the UI
-
-The backend rejects unsupported pre-engineered client vectors and
-expects the canonical raw-record format.
-
-7. 44-Feature Inference Architecture
-
-The current model expects 44 numeric features in a specific order.
+The current model expects **44 numeric features in a specific order**.
 
 The ordering is controlled through:
 
+```text
 artifacts/model_metadata.json
+```
 
-The backend therefore treats the model metadata as part of the inference
-contract.
+The backend therefore treats model metadata as part of the inference contract.
 
+```text
 Raw Records
     │
     ▼
@@ -355,39 +499,53 @@ Preprocessing Pipeline
     │
     ▼
 Calibrated LightGBM Model
+```
 
-This prevents a valid-looking vector with incorrect feature ordering
-from silently producing an invalid inference result.
+### Why the contract matters
 
-8. ML Inference Layer
+A vector can be numerically valid while still being semantically incorrect if feature ordering changes.
 
-The ML layer loads serialized artifacts from the configured artifact
-directory.
+The canonical feature contract therefore protects against silent inference mismatches.
 
-Current artifacts include:
+---
 
+# 🧠 12. ML Inference Layer
+
+The ML layer loads serialized artifacts from the configured artifact directory.
+
+## Current Artifacts
+
+```text
 artifacts/
 ├── risk_model.pkl
 ├── preprocessing_pipeline.pkl
 ├── baseline_model.pkl
 ├── model_metadata.json
 └── MODEL_CARD.md
+```
 
-Current model metadata
+## Current Model Metadata
 
+```text
 Model Version:   0.2.0-sih-final
 Feature Version: 1.1.0
 Input Features:  44 numeric features
 Model:           Calibrated LightGBM
+```
 
 The artifact directory can be configured through:
 
+```text
 MODEL_ARTIFACT_DIR
+```
 
-9. Inference Pipeline
+---
+
+# 🔬 13. Inference Pipeline
 
 The complete inference pipeline is:
 
+```text
 1. Receive raw_records
           │
           ▼
@@ -426,24 +584,24 @@ The complete inference pipeline is:
           │
           ▼
 13. Return structured response
+```
 
-10. Risk Signal Layer
+---
 
-The ML model generates a calibrated risk signal rather than directly
-deciding what action should be taken.
+# 📊 14. Risk Signal Layer
+
+The ML model generates a calibrated risk signal rather than directly deciding what action should be taken.
 
 The backend can expose:
 
-predicted risk class
+- Predicted risk class
+- Calibrated class probabilities
+- Relevant feature contributions
+- Contextual information required by the dashboard
 
-calibrated class probabilities
+### Architectural Boundary
 
-relevant feature contributions
-
-contextual information required by the dashboard
-
-The distinction is important:
-
+```text
 AI Model
    │
    ▼
@@ -456,40 +614,63 @@ Decision Support
 Human Review
    │
    ▼
-Welfare Follow-up
+Welfare Follow-Up
+```
 
-The model does not directly trigger disciplinary action, automated
-messaging, or intervention.
+The model does not directly trigger:
 
-11. Data Trust Layer
+- ❌ Disciplinary action
+- ❌ Automated welfare intervention
+- ❌ Autonomous personnel decisions
+
+---
+
+# 🛡️ 15. Data Trust Layer
 
 Risk output is interpreted together with a data-trust heuristic.
 
-The purpose is to distinguish:
+The purpose is to distinguish between:
 
-High-confidence signal
-        from
-Potentially unreliable data
+```text
+Meaningful / sufficiently supported signal
+                vs.
+Potentially unreliable or incomplete data
+```
 
-Data trust can consider characteristics of the available input and its
-quality.
+### Conceptual Flow
 
-The resulting system can surface a state such as:
+```text
+Input Data
+    │
+    ▼
+Data Completeness / Consistency
+    │
+    ▼
+Data Trust Heuristic
+    │
+    ▼
+Interpretation Context
+```
 
+Possible platform states include:
+
+```text
 REVIEW_RECOMMENDED
 MONITOR
 VERIFY_DATA
+```
 
-These states are decision-support outputs of the platform and are not
-additional trained ML models.
+These states are **decision-support outputs**, not additional trained ML models.
 
-12. Risk + Trust Fusion
+---
 
-The backend does not treat model probability as the entire decision
-context.
+# 🔀 16. Risk + Trust Fusion
+
+The backend does not treat model probability as the entire decision context.
 
 Instead:
 
+```text
                 ┌──────────────────┐
                 │   ML Risk Signal │
                 └────────┬─────────┘
@@ -507,36 +688,32 @@ Instead:
                 └──────────────────┘
                          │
                          ▼
-                 Decision Support
+                  Decision Support
+```
 
-This makes the system more transparent because a welfare officer can
-distinguish between:
+This allows the welfare officer to distinguish between:
 
-a meaningful risk signal
+- A meaningful risk signal
+- A signal that should be monitored
+- A case where underlying data should first be verified
 
-a signal that should be monitored
+---
 
-a case where the underlying data should first be verified
-
-13. Historical Intelligence Layer
+# 📈 17. Historical Intelligence Layer
 
 The backend maintains historical assessment context in MongoDB.
 
 Historical records allow the platform to analyze:
 
-previous risk assessments
+- Previous risk assessments
+- Changes over time
+- Trajectory
+- Historical patterns
+- Recent deviations
 
-changes over time
+### Historical Flow
 
-trajectory
-
-historical patterns
-
-recent deviations
-
-The current assessment is therefore interpreted in relation to previous
-observations rather than being treated as an isolated prediction.
-
+```text
 Previous Assessments
         │
         ▼
@@ -551,14 +728,17 @@ Current AI Assessment
         │
         ▼
 Contextual Welfare Signal
+```
 
-14. "What Changed" Layer
+The current assessment is therefore interpreted in relation to previous observations rather than treated as an isolated prediction.
 
-The backend can derive a human-readable view of meaningful changes
-between the current data and historical context.
+---
 
-Conceptually:
+# 🔄 18. “What Changed” Layer
 
+The backend can derive a human-readable view of meaningful changes between current data and historical context.
+
+```text
 Historical Baseline
         │
         ▼
@@ -572,18 +752,19 @@ Meaningful Changes
         │
         ▼
 "What Changed"
+```
 
-This gives the welfare officer contextual information instead of
-presenting only a risk label.
+This provides contextual information around the current signal instead of presenting only a risk label.
 
-15. Welfare Recommendation Layer
+---
+
+# 💡 19. Welfare Recommendation Layer
 
 Recommendations are generated through platform logic and rules.
 
-They are not another trained predictive model.
+They are **not another trained predictive model**.
 
-The backend can combine:
-
+```text
 Risk Signal
     +
 Data Trust
@@ -593,16 +774,19 @@ Historical Context
 Observed Changes
     ↓
 Welfare Recommendations
+```
 
-The purpose is to help the officer decide what type of follow-up may be
-appropriate.
+The purpose is to help the officer understand what type of follow-up may be appropriate.
 
 The final action remains with the authorized human reviewer.
 
-16. Human-in-the-Loop Architecture
+---
+
+# 🧑‍💼 20. Human-in-the-Loop Architecture
 
 Human oversight is a core backend boundary.
 
+```text
                  AI Analysis
                      │
                      ▼
@@ -612,90 +796,97 @@ Human oversight is a core backend boundary.
              Officer Dashboard
                      │
                      ▼
-              Human Review
-               /         \
-              /           \
-             ▼             ▼
-       Monitor /        Follow-up /
-       No Action        Intervention
-                           │
-                           ▼
-                  Intervention Record
-                           │
-                           ▼
-                       MongoDB
+                Human Review
+                 /         \
+                /           \
+               ▼             ▼
+          Monitor /       Follow-up /
+          No Action       Intervention
+                              │
+                              ▼
+                     Intervention Record
+                              │
+                              ▼
+                          MongoDB
+```
 
-The backend records human review rather than allowing the model to
-autonomously execute welfare actions.
+The backend records human review rather than allowing the model to autonomously execute welfare actions.
 
-17. Intervention Architecture
+---
 
-Interventions represent the human-reviewed response to an AI-assisted
-signal.
+# 📝 21. Intervention Architecture
 
-A simplified flow is:
+Interventions represent the human-reviewed response to an AI-assisted signal.
 
+```text
 AI Assessment
       │
       ▼
 Officer Review
       │
-      ├── Review decision
-      ├── Follow-up details
-      └── Intervention information
+      ├── Review Decision
+      ├── Follow-Up Details
+      └── Intervention Information
       │
       ▼
 Intervention API
       │
       ▼
 MongoDB
+```
 
-This creates an auditable separation between:
+### Critical distinction
 
+```text
 Model Output ≠ Human Decision
+```
 
-18. MongoDB Persistence Architecture
+The backend therefore maintains a clear boundary between prediction and action.
+
+---
+
+# 🗄️ 22. MongoDB Persistence Architecture
 
 MongoDB is used as the backend persistence layer.
 
 The backend stores application information such as:
 
-personnel profiles
+- Personnel profiles
+- Welfare-related records
+- Risk assessments
+- Historical assessments
+- Intervention / review records
+- Synthetic demo records
 
-welfare-related records
+### Logical Structure
 
-risk assessments
-
-historical assessments
-
-intervention / review records
-
-synthetic demo records
-
-A simplified logical structure is:
-
+```text
 MongoDB
 │
 ├── Personnel
-│   └── Profile / context
+│   └── Profile / Context
 │
 ├── Assessments
-│   ├── Current result
+│   ├── Current Result
 │   ├── Probabilities
-│   ├── Trust information
-│   └── Historical assessment data
+│   ├── Trust Information
+│   └── Historical Assessment Data
 │
 ├── Interventions
-│   ├── Human review
-│   └── Follow-up information
+│   ├── Human Review
+│   └── Follow-Up Information
 │
 └── Demo / Welfare Records
-    └── Synthetic prototype data
+    └── Synthetic Prototype Data
+```
 
-19. Historical Assessment Persistence
+---
+
+# 📚 23. Historical Assessment Persistence
 
 Every assessment can contribute to a personnel-level historical context.
 
+```text
 Personnel
    │
    ├── Assessment 1
@@ -708,14 +899,17 @@ Personnel
             │
             ▼
       Historical Analysis
+```
 
-This supports trajectory-based decision support without requiring the
-frontend to reconstruct the history itself.
+This supports trajectory-based decision support without requiring the frontend to reconstruct history itself.
 
-20. Demo Data Architecture
+---
+
+# 🌱 24. Demo Data Architecture
 
 The prototype includes a controlled synthetic-data workflow.
 
+```text
 POST /api/demo/seed
           │
           ▼
@@ -732,82 +926,100 @@ Store in MongoDB
           │
           ▼
 Demo Dashboard
+```
 
-The demo workflow is designed to demonstrate the complete architecture
-without requiring operational personnel data.
+The demo workflow demonstrates the complete backend architecture without requiring operational personnel data.
 
-21. API Architecture
+---
+
+# 🌐 25. API Architecture
 
 The backend exposes API routes under:
 
+```text
 /api
+```
 
-Important functional areas include:
+### Functional Areas
 
+```text
 /api/predict
 /api/demo/seed
 /api/demo/personnel
 /api/interventions
+```
 
-The exact route organization is maintained inside the backend router
-structure.
+The exact route organization is maintained inside the backend router structure.
 
-Prediction
+---
 
+## `POST /api/predict`
+
+### Purpose
+
+- Receive raw weekly records
+- Perform server-side feature engineering
+- Run the trained model
+- Generate risk probabilities
+- Evaluate data trust
+- Incorporate historical context
+- Return decision-support information
+
+```text
 POST /api/predict
+        │
+        ▼
+Validation
+        │
+        ▼
+Feature Engineering
+        │
+        ▼
+ML Inference
+        │
+        ▼
+Decision Support
+        │
+        ▼
+JSON Response
+```
 
-Purpose:
+---
 
-receive raw weekly records
+## `POST /api/demo/seed`
 
-perform server-side feature engineering
+### Purpose
 
-run the trained model
+- Create synthetic demonstration personnel
+- Generate historical assessment context
+- Run the actual uploaded model
+- Populate the prototype database
 
-generate risk probabilities
+---
 
-evaluate data trust
+## `GET /api/demo/personnel`
 
-incorporate historical context
+### Purpose
 
-return decision-support information
+- Retrieve synthetic personnel profiles
+- Retrieve historical assessment context
+- Support the demonstration interface
 
-Demo Seed
+---
 
-POST /api/demo/seed
+## `/api/interventions`
 
-Purpose:
+### Purpose
 
-create synthetic demonstration personnel
+Record human-reviewed welfare follow-up / intervention information.
 
-generate historical assessment context
+---
 
-run the actual uploaded model
-
-populate the prototype database
-
-Demo Personnel
-
-GET /api/demo/personnel
-
-Purpose:
-
-retrieve synthetic personnel profiles
-
-retrieve historical assessment context for the demo interface
-
-Interventions
-
-/api/interventions
-
-Purpose:
-
-record human-reviewed welfare follow-up / intervention information
-
-22. Backend Repository Architecture
+# 📁 26. Backend Repository Architecture
 
 The backend is organized as a modular Python application.
 
+```text
 backend/
 │
 ├── server.py
@@ -824,51 +1036,54 @@ backend/
 │   └── Backend test suite
 │
 └── requirements.txt
+```
 
 The repository also contains:
 
+```text
 artifacts/
 ├── risk_model.pkl
 ├── preprocessing_pipeline.pkl
 ├── baseline_model.pkl
 ├── model_metadata.json
 └── MODEL_CARD.md
+```
 
-23. Configuration Architecture
+---
+
+# ⚙️ 27. Configuration Architecture
 
 The backend uses environment-based configuration.
 
-Important variables include:
+### Configuration Variables
 
+```text
 MONGO_URL=
 DB_NAME=
 CORS_ORIGINS=
 MODEL_ARTIFACT_DIR=
 APP_TZ=
 BACKEND_URL=
+```
 
-Required
+| Variable | Requirement |
+|---|---|
+| `MONGO_URL` | Required |
+| `DB_NAME` | Required |
+| `CORS_ORIGINS` | Optional |
+| `MODEL_ARTIFACT_DIR` | Optional |
+| `APP_TZ` | Optional |
+| `BACKEND_URL` | Optional |
 
-MONGO_URL
-DB_NAME
+Keeping configuration outside application code makes deployment and environment changes easier.
 
-Optional
+---
 
-CORS_ORIGINS
-MODEL_ARTIFACT_DIR
-APP_TZ
-BACKEND_URL
+# 🔗 28. CORS & Frontend Communication
 
-Keeping configuration outside application code makes deployment and
-environment changes easier.
+The frontend communicates with backend endpoints using relative `/api/...` paths.
 
-24. CORS and Frontend Communication
-
-The frontend communicates with backend endpoints using relative
-/api/... paths.
-
-The Vite development server proxies API traffic to the FastAPI backend.
-
+```text
 Browser
    │
    │ /api/...
@@ -881,19 +1096,25 @@ FastAPI
    │
    ▼
 Backend Services
+```
 
 CORS behavior can be configured through:
 
+```text
 CORS_ORIGINS
+```
 
-25. Backend Security Boundary
+---
+
+# 🔐 29. Backend Security Boundary
 
 The architecture intentionally keeps sensitive processing on the server.
 
+```text
 ┌────────────────────────────────────┐
 │            Frontend                │
 │                                    │
-│ UI + request composition            │
+│ UI + Request Composition           │
 └──────────────────┬─────────────────┘
                    │
              Controlled API
@@ -908,63 +1129,66 @@ The architecture intentionally keeps sensitive processing on the server.
 │ Decision Support                   │
 │ Persistence                        │
 └────────────────────────────────────┘
+```
 
 The browser does not directly access:
 
-the serialized ML model
+- ❌ Serialized ML models
+- ❌ Preprocessing artifacts
+- ❌ Database credentials
+- ❌ MongoDB
+- ❌ Internal feature-engineering logic
 
-preprocessing artifacts
+---
 
-database credentials
+# 🛡️ 30. Responsible AI Boundary
 
-MongoDB
+Manobal-AI is designed as a welfare decision-support system, not an autonomous authority.
 
-internal feature-engineering logic
+| Capability | Backend Role |
+|---|---|
+| Welfare signal | ✅ Generate AI-assisted signal |
+| Diagnosis | ❌ Not performed |
+| Automatic discipline | ❌ Not performed |
+| Automatic welfare action | ❌ Not performed |
+| Officer review | ✅ Required |
+| Historical context | ✅ Supported |
+| Data-trust evaluation | ✅ Supported |
+| Human-reviewed intervention record | ✅ Supported |
+| Synthetic demo data | ✅ Supported |
 
-26. Responsible AI Boundary
+---
 
-Manobal-AI is designed as a welfare decision-support system, not an
-autonomous authority.
+# 🧠 31. Model vs Platform Logic
 
-The backend therefore follows these boundaries:
+A major architectural distinction is maintained between trained ML components and platform decision-support logic.
 
-Capability                           Backend Role
+## Trained Components
 
-Stress/welfare signal                Generate AI-assisted signal
-Diagnosis                            ❌ Not performed
-Automatic discipline                 ❌ Not performed
-Automatic welfare action             ❌ Not performed
-Officer review                       ✅ Required
-Historical context                   ✅ Supported
-Data-trust evaluation                ✅ Supported
-Human-reviewed intervention record   ✅ Supported
-Synthetic demo data                  ✅ Supported
-
-27. Model vs Platform Logic
-
-A major architectural distinction is maintained between trained ML
-components and platform decision-support logic.
-
-Trained Components
-
+```text
 Preprocessing Pipeline
         +
 Calibrated LightGBM Model
+```
 
-Platform Logic
+## Platform Logic
 
+```text
 Feature Engineering
 Data Trust Heuristic
 Historical Trajectory
 "What Changed"
 Risk + Trust Fusion
 Welfare Recommendations
+```
 
-This separation makes the architecture easier to explain, validate, and
-improve.
+This separation makes the architecture easier to explain, validate, test, and improve.
 
-28. End-to-End Backend Architecture
+---
 
+# 🔄 32. End-to-End Backend Architecture
+
+```text
                     RAW WELFARE DATA
                            │
                            ▼
@@ -1046,96 +1270,232 @@ improve.
                           │
                           ▼
                        MongoDB
+```
 
-29. Prototype vs Production Backend
+---
 
-The current implementation is a prototype intended for SIH
-demonstration.
+# ⚡ 33. Why This Backend Architecture?
 
-Area                    Current Prototype        Production Direction
+## 1. Backend as the Source of Truth
 
-Authentication          Demo role switch         Enterprise
-authentication + RBAC
+The backend controls:
 
-Database                MongoDB                  Hardened managed
-deployment
+```text
+Feature Engineering
+Model Inference
+Welfare Records
+Historical Assessments
+Intervention Records
+```
 
-Data                    Synthetic demo data      Authorized operational
-data
+## 2. Model Isolation
 
-ML model                Synthetic-data-trained   Revalidated with
-artifact                 authorized real data
+```text
+Frontend
+   │
+   ▼
+FastAPI
+   │
+   ▼
+InferenceEngine
+   │
+   ▼
+ML Artifacts
+```
 
-API                     FastAPI REST             Hardened API gateway /
-service deployment
+The frontend never needs direct access to model artifacts.
 
-Secrets                 Environment              Managed secret
-configuration            infrastructure
+## 3. Clear Separation of Concerns
 
-Auditability            Intervention records     Immutable audit logging
+```text
+Frontend
+   → Presentation
 
-Monitoring              Development/test setup   Production
-observability
+FastAPI
+   → Application Logic
 
-Deployment              Local / prototype        Containerized
-cloud/on-prem
-deployment
+ML Layer
+   → Prediction
 
-These production items are architectural directions, not claims that
-they are already implemented.
+MongoDB
+   → Persistence
 
-30. Testing Architecture
+Decision-Support Layer
+   → Context / Heuristics
+
+Human Officer
+   → Final Welfare Decision
+```
+
+## 4. Human-Centered Design
+
+```text
+AI
+ ↓
+Signal
+ ↓
+Context
+ ↓
+Human Review
+ ↓
+Action
+```
+
+## 5. Future Scalability
+
+The architecture can later support:
+
+```text
+Authentication Service
+       │
+       ▼
+Welfare Service
+       │
+       ▼
+ML Model Service
+       │
+       ▼
+Data / Analytics Layer
+       │
+       ▼
+Monitoring & Audit
+```
+
+without requiring the prototype to begin with unnecessary microservice complexity.
+
+---
+
+# 🚀 34. Future Production Architecture
+
+The backend can evolve toward a more hardened production architecture:
+
+```text
+                         API Gateway
+                              │
+             ┌────────────────┼────────────────┐
+             │                │                │
+             ▼                ▼                ▼
+       Authentication     Welfare API     Officer API
+             │                │                │
+             └────────────────┼────────────────┘
+                              │
+                              ▼
+                    Decision-Support Layer
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+          ML Serving       History         Data Trust
+              │               │               │
+              └───────────────┼───────────────┘
+                              ▼
+                           Database
+                              │
+                 ┌────────────┴────────────┐
+                 ▼                         ▼
+             Monitoring                Audit Logs
+```
+
+### Potential Production Infrastructure
+
+```text
+Redis
+Background Workers
+Dedicated Model Serving
+Observability
+Audit Logging
+Data Quality Monitoring
+Model Drift Detection
+Secure Cloud Infrastructure
+```
+
+These are **architectural directions**, not claims that all components are currently implemented.
+
+---
+
+# 🧪 35. Prototype vs Production Backend
+
+| Area | Current Prototype | Production Direction |
+|---|---|---|
+| Authentication | Demo role switch | Enterprise authentication + RBAC |
+| Database | MongoDB | Hardened managed deployment |
+| Data | Synthetic demo data | Authorized operational data |
+| ML | Serialized LightGBM artifact | Revalidated/versioned model serving |
+| API | FastAPI REST | Hardened API/service deployment |
+| Secrets | Environment configuration | Managed secret infrastructure |
+| Auditability | Intervention records | Immutable audit logging |
+| Monitoring | Development/test setup | Production observability |
+| Deployment | Local/prototype | Containerized cloud/on-prem deployment |
+| Welfare Action | Human-led | Governed human-led workflow |
+
+> These production items are architectural directions, not claims that they are already implemented.
+
+---
+
+# 🧪 36. Testing Architecture
 
 Backend tests are maintained under:
 
+```text
 backend/tests/
+```
 
 The project uses:
 
+```text
 pytest
+```
 
-Tests can be executed with:
+Run tests with:
 
+```bash
 pytest
+```
 
 For serial execution:
 
+```bash
 pytest -n 0
+```
 
 The test architecture is intended to validate:
 
-API behavior
+- API behavior
+- Inference flow
+- Request validation
+- Feature engineering
+- Backend logic
+- Persistence behavior
+- Integration behavior
 
-inference flow
+---
 
-request validation
-
-feature engineering
-
-backend logic
-
-persistence behavior
-
-integration behavior
-
-31. Backend Startup
+# ▶️ 37. Backend Startup
 
 From the backend directory:
 
+```bash
 cd backend
+```
 
 Install dependencies:
 
+```bash
 pip install -r requirements.txt
+```
 
 Start FastAPI:
 
+```bash
 uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+```
 
 The backend is then available for frontend API communication.
 
-32. Backend Data Flow Summary
+---
 
+# 📊 38. Backend Data Flow Summary
+
+```text
                  ┌──────────────────────┐
                  │   Raw User / Demo    │
                  │       Records        │
@@ -1187,130 +1547,69 @@ The backend is then available for frontend API communication.
                  ┌──────────────────────┐
                  │ MongoDB Persistence  │
                  └──────────────────────┘
+```
 
-33. Why This Backend Architecture?
+---
 
-The backend architecture was designed around a simple principle:
+# 🧱 39. Backend Architecture Principles
 
-The model produces a signal; the platform provides context; the
-human makes the decision.
-
-This architecture provides:
-
-centralized AI inference
-
-consistent feature engineering
-
-controlled model access
-
-historical context
-
-data-quality awareness
-
-explainable signals
-
-auditable human review
-
-modular backend services
-
-a clear path toward production hardening
-
-34. Future Backend Scalability
-
-The architecture can be extended without changing the core welfare
-decision-support principle.
-
-Potential future directions include:
-
-Current Prototype
-      │
-      ▼
-Production Authentication
-      │
-      ▼
-Role-Based Access Control
-      │
-      ▼
-Secure Data Ingestion
-      │
-      ▼
-Authorized Real-Data Validation
-      │
-      ▼
-Model Registry / Versioning
-      │
-      ▼
-Audit Logging
-      │
-      ▼
-Monitoring + Observability
-      │
-      ▼
-Scalable Deployment
-
-The model and platform logic should continue to remain separated so that
-future model versions can be validated and deployed without redesigning
-the entire application.
-
-35. Backend Architecture Principles
-
-1. Server-Side Inference
+### 1. Server-Side Inference
 
 ML inference remains inside the backend.
 
-2. Canonical Feature Pipeline
+### 2. Canonical Feature Pipeline
 
-Raw records are transformed into the official 44-feature representation
-on the server.
+Raw records are transformed into the official 44-feature representation on the server.
 
-3. Separation of Concerns
+### 3. Separation of Concerns
 
-API, database, ML, feature engineering, and decision-support
-responsibilities remain modular.
+API, database, ML, feature engineering, and decision-support responsibilities remain modular.
 
-4. Human-in-the-Loop
+### 4. Human-in-the-Loop
 
 AI output is presented for human review rather than autonomous action.
 
-5. Context Over Isolated Prediction
+### 5. Context Over Isolated Prediction
 
-Current signals are interpreted alongside historical information and
-data trust.
+Current signals are interpreted alongside historical information and data trust.
 
-6. Transparent AI
+### 6. Transparent AI
 
-The system exposes probabilities, relevant contributions when available,
-and supporting context.
+The system exposes probabilities, relevant contributions when available, and supporting context.
 
-7. Privacy-Oriented Design
+### 7. Privacy-Oriented Design
 
 Database and model artifacts remain behind the backend boundary.
 
-8. Production-Aware Architecture
+### 8. Production-Aware Architecture
 
-The prototype is structured so authentication, RBAC, auditing,
-observability, and secure deployment can be added later.
+The prototype is structured so authentication, RBAC, auditing, observability, and secure deployment can be added later.
 
-36. Backend Architecture at a Glance
+---
 
-Component                 Responsibility
+# 📋 40. Backend Architecture at a Glance
 
-FastAPI                   Backend API and application server
-Pydantic                  Request / response validation
-Feature Engineering       Raw records → 44 canonical features
-Preprocessing Pipeline    ML input transformation
-LightGBM                  Welfare-risk classification
-Data Trust                Input reliability heuristic
-Historical Intelligence   Trajectory and historical context
-Risk + Trust Fusion       Contextual decision-support state
-Recommendations           Rule-based welfare guidance
-MongoDB                   Persistent application data
-Intervention API          Human-reviewed follow-up records
-Pytest                    Backend testing
-Uvicorn                   ASGI server
+| Component | Responsibility |
+|---|---|
+| **FastAPI** | Backend API and application server |
+| **Pydantic** | Request / response validation |
+| **Feature Engineering** | Raw records → 44 canonical features |
+| **Preprocessing Pipeline** | ML input transformation |
+| **LightGBM** | Welfare-risk classification |
+| **Data Trust** | Input reliability heuristic |
+| **Historical Intelligence** | Trajectory and historical context |
+| **Risk + Trust Fusion** | Contextual decision-support state |
+| **Recommendations** | Rule-based welfare guidance |
+| **MongoDB** | Persistent application data |
+| **Intervention API** | Human-reviewed follow-up records |
+| **Pytest** | Backend testing |
+| **Uvicorn** | ASGI server |
 
-37. Architecture Summary
+---
 
+# 🏁 41. Final Backend Architecture
+
+```text
 ┌───────────────────────────────────────────────────────────────┐
 │                       MANOBAL-AI BACKEND                      │
 ├───────────────────────────────────────────────────────────────┤
@@ -1358,15 +1657,17 @@ Uvicorn                   ASGI server
 │  MongoDB                                                      │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
+```
 
-🚀 Final Backend Principle
+---
 
-Manobal-AI's backend is not designed as an autonomous surveillance or
-action engine.
+# 🎯 42. Final Backend Principle
 
-It is designed as a controlled AI-assisted welfare intelligence
-layer:
+Manobal-AI's backend is not designed as an autonomous surveillance or action engine.
 
+It is designed as a controlled **AI-assisted welfare intelligence layer**:
+
+```text
 DATA
   ↓
 FEATURES
@@ -1380,5 +1681,19 @@ CONTEXT
 HUMAN REVIEW
   ↓
 WELFARE ACTION
+```
 
-AI should assist. Humans should decide.
+> ## 🤖 AI should assist.
+> ## 🧑‍💼 Humans should decide.
+
+---
+
+<div align="center">
+
+### ⚙️ Backend Architecture
+
+**FastAPI · LightGBM · MongoDB · Human-in-the-Loop**
+
+**AI-Assisted • Evidence-Aware • Human-Led**
+
+</div>
