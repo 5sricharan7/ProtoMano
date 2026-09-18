@@ -1,20 +1,43 @@
-# 🎯 Problem Statement
+<div align="center">
 
-## The Challenge
+# 🎯 Manobal-AI — Problem Statement & Solution
 
-Personnel serving in **Central Armed Police Forces (CAPFs), Armed Forces, and other uniformed services** operate in environments that can be physically demanding, psychologically stressful, and operationally hazardous.
+### AI-Assisted Personnel Welfare Intelligence & Human-in-the-Loop Decision Support
 
-Extended deployments, irregular working hours, workload pressures, separation from families, frequent transfers, training commitments, and exposure to difficult operational situations can contribute to **stress, emotional fatigue, burnout, and other welfare concerns**.
+**Smart India Hackathon 2026 • Problem Statement 26186**
 
-The current identification of such concerns often depends on **manual observation and voluntary self-reporting**. While these approaches remain important, they can make it difficult to consistently identify changes across large personnel populations and over extended periods.
+> **AI should assist. Humans should decide.**
 
-The SIH problem statement therefore calls for an **AI-powered predictive personnel stress and welfare monitoring system** capable of identifying early indicators while maintaining privacy, confidentiality, dignity, and organizational trust.
+</div>
 
 ---
 
-## 🔎 The Existing Gap
+## 📌 Executive Summary
 
-The problem can be represented as:
+Personnel serving in **Central Armed Police Forces (CAPFs), Armed Forces, and other uniformed services** operate in environments that can be physically demanding, psychologically stressful, and operationally hazardous.
+
+Manobal-AI proposes a **human-in-the-loop welfare decision-support platform** that converts voluntary welfare information and authorized organizational indicators into structured, contextual welfare signals.
+
+The platform combines:
+
+- Voluntary welfare check-ins
+- Organizational and wellness indicators
+- Server-side feature engineering
+- A 44-feature ML pipeline
+- Calibrated LightGBM inference
+- Class probabilities
+- Data-trust analysis
+- Historical trajectory analysis
+- **What Changed** insights
+- Welfare recommendations
+- Authorized human officer review
+- Human-reviewed intervention recording
+
+The system is deliberately designed to support **early awareness and informed welfare follow-up**, rather than autonomous personnel decision-making.
+
+---
+
+## 🧭 Problem at a Glance
 
 ```text
 Operational Environment
@@ -45,9 +68,13 @@ Operational Environment
  Difficult To Identify Early
 ```
 
-The core challenge is therefore not simply **collecting more data**.
+### The Core Challenge
 
-It is converting available and voluntarily provided welfare information into **structured, explainable signals that can help authorized welfare personnel identify meaningful changes and decide when human follow-up may be appropriate**.
+The challenge is not simply **collecting more data**.
+
+It is converting available and voluntarily provided welfare information into:
+
+> **Structured, explainable signals that can help authorized welfare personnel identify meaningful changes and decide when human follow-up may be appropriate.**
 
 ---
 
@@ -55,20 +82,31 @@ It is converting available and voluntarily provided welfare information into **s
 
 **Manobal-AI (Welfare Signal)** is a human-in-the-loop decision-support platform designed around the requirements of the SIH problem statement.
 
-The platform brings together:
+It brings together:
 
-* Voluntary welfare check-ins
-* Organizational and wellness indicators
-* Historical assessment data
-* Machine-learning based risk signaling
-* Data-trust analysis
-* Historical trajectory analysis
-* “What Changed” insights
-* Welfare recommendations
-* Human officer review
-* Intervention recording
+```text
+Voluntary Welfare Check-ins
+            +
+Organizational / Wellness Indicators
+            +
+Historical Assessment Data
+            +
+Machine Learning
+            +
+Data Trust
+            +
+Historical Intelligence
+            +
+Explainability
+            +
+Human Review
+            +
+Intervention Recording
+```
 
 into a unified welfare-support workflow.
+
+### Core Workflow
 
 ```text
                   MANOBAL-AI
@@ -83,7 +121,7 @@ into a unified welfare-support workflow.
              Feature Engineering
                       │
                       ▼
-                 ML Model
+                  ML Model
                       │
                       ▼
           ┌───────────────────────┐
@@ -110,7 +148,7 @@ into a unified welfare-support workflow.
            Review
             │
             ▼
-       Follow-Up / 
+       Follow-Up /
        Intervention
 ```
 
@@ -118,9 +156,7 @@ into a unified welfare-support workflow.
 
 # 🤖 What Does the AI Actually Do?
 
-Manobal-AI uses a **calibrated LightGBM multiclass classifier** to transform 44 engineered numerical features into a welfare-risk signal.
-
-The system can incorporate indicators derived from the available welfare records and organizational context.
+Manobal-AI uses a **calibrated LightGBM multiclass classifier** to transform **44 engineered numerical features** into a welfare-risk signal.
 
 ```text
 Raw Welfare Records
@@ -145,17 +181,39 @@ Low / Moderate / High
 Welfare-Risk Signal
 ```
 
+### AI Boundary
+
 The model is **not presented as a diagnostic system**.
 
-Instead, its output is treated as a **signal requiring appropriate human interpretation and review**.
+Its output is treated as:
+
+> **An AI-assisted signal requiring appropriate human interpretation and review.**
+
+The platform therefore separates:
+
+```text
+                    MODEL
+                      │
+                      ▼
+                Risk Signal
+                      │
+                      ▼
+              Contextual Analysis
+                      │
+                      ▼
+                Human Officer
+                      │
+                      ▼
+                Human Decision
+```
 
 ---
 
 # 🧠 From Prediction to Decision Support
 
-A major design principle of Manobal-AI is that the model prediction is **only one component of the overall decision-support workflow**.
+A major design principle is that the ML prediction is **only one component** of the overall decision-support workflow.
 
-The platform combines:
+Manobal-AI combines:
 
 ```text
                   ML Risk Signal
@@ -182,9 +240,7 @@ This allows the system to provide additional context around a signal instead of 
 
 # 🛡️ Human-in-the-Loop by Design
 
-The official SIH problem statement emphasizes welfare support while maintaining privacy and avoiding disciplinary misuse.
-
-Manobal-AI therefore follows:
+The platform is deliberately designed around human review.
 
 ```text
 AI
@@ -202,7 +258,7 @@ Human Decision
 Welfare Follow-Up
 ```
 
-The system does **not** automatically:
+### 🚫 What the System Does NOT Do
 
 ```text
 ❌ Diagnose personnel
@@ -219,18 +275,18 @@ This keeps the platform focused on **early awareness and welfare support**, rath
 
 # 🔐 Privacy & Trust
 
-Because welfare information can be highly sensitive, privacy is treated as a core architectural requirement rather than an additional feature.
+Welfare information can be highly sensitive. Privacy is therefore treated as a **core architectural requirement**, not an additional feature.
 
-The SIH problem statement specifically highlights:
+The SIH problem statement highlights:
 
-* Privacy and confidentiality
-* Prevention of stigmatization
-* Reduction of false positives and false negatives
-* Transparent and ethical AI
-* Protection of sensitive welfare information
-* Building trust among personnel
+- Privacy and confidentiality
+- Prevention of stigmatization
+- Reduction of false positives and false negatives
+- Transparent and ethical AI
+- Protection of sensitive welfare information
+- Building trust among personnel
 
-Manobal-AI reflects these requirements through:
+### Controlled Data Flow
 
 ```text
 Voluntary Data
@@ -246,15 +302,21 @@ Human Review
 Explicit Welfare Action
 ```
 
+### Prototype Boundary
+
 The current repository remains a **prototype** and therefore does not yet implement production-grade authentication and RBAC.
 
 ---
 
 # 📈 Expected Impact
 
-The proposed system is intended to support the transition from a primarily reactive welfare workflow toward a more **proactive, preventive, and data-informed framework**.
+The proposed system is intended to support a transition from a primarily reactive welfare workflow toward a more:
 
-Potential benefits identified in the SIH problem statement include:
+**Proactive • Preventive • Data-Informed**
+
+framework.
+
+### Intended Support Flow
 
 ```text
 Early Identification
@@ -270,7 +332,16 @@ Greater Workforce Resilience
 Improved Operational Readiness
 ```
 
-The SIH problem statement also identifies potential benefits including improved welfare planning, workload management, workforce resilience, retention, job satisfaction, and reduction of incidents associated with prolonged occupational stress.
+The SIH problem framing also identifies potential benefits around:
+
+- Welfare planning
+- Workload management
+- Workforce resilience
+- Retention
+- Job satisfaction
+- Reduction of incidents associated with prolonged occupational stress
+
+These represent **intended or potential benefits**, not claims of measured real-world impact from the current prototype.
 
 ---
 
@@ -287,24 +358,162 @@ The system therefore follows one fundamental principle:
 
 ---
 
-## 📌 SIH Alignment
+# 📊 SIH Alignment
 
-| SIH Requirement                        | Manobal-AI Implementation                               |
-| -------------------------------------- | ------------------------------------------------------- |
-| Personnel welfare monitoring           | Voluntary welfare check-ins                             |
-| Predictive analytics                   | Calibrated LightGBM classifier                          |
-| Stress / welfare risk assessment       | Low / Moderate / High welfare-risk signal               |
-| Behavioral / organizational indicators | Engineered welfare and organizational features          |
-| Welfare officer dashboard              | Officer command workspace                               |
-| Early identification                   | Risk signal + historical trajectory                     |
-| Intervention support                   | Human-reviewed intervention workflow                    |
-| Privacy protection                     | Human-in-the-loop and controlled data flow              |
-| Ethical AI                             | No diagnosis, discipline, or autonomous action          |
-| Data-driven welfare planning           | Historical assessments and contextual insights          |
-| Secure architecture                    | Server-side inference and backend-controlled processing |
+| SIH Requirement | Manobal-AI Implementation |
+|---|---|
+| **Personnel welfare monitoring** | Voluntary welfare check-ins |
+| **Predictive analytics** | Calibrated LightGBM classifier |
+| **Stress / welfare risk assessment** | Low / Moderate / High welfare-risk signal |
+| **Behavioral / organizational indicators** | Engineered welfare and organizational features |
+| **Welfare officer dashboard** | Officer command workspace |
+| **Early identification** | Risk signal + historical trajectory |
+| **Intervention support** | Human-reviewed intervention workflow |
+| **Privacy protection** | Human-in-the-loop and controlled data flow |
+| **Ethical AI** | No diagnosis, discipline, or autonomous action |
+| **Data-driven welfare planning** | Historical assessments and contextual insights |
+| **Secure architecture** | Server-side inference and backend-controlled processing |
+
+---
+
+# 🔬 Technical Differentiator
+
+Manobal-AI is not positioned around the ML model alone.
+
+The technical workflow extends beyond:
+
+```text
+DATA
+ ↓
+MODEL
+ ↓
+PREDICTION
+```
+
+to:
+
+```text
+DATA
+ ↓
+CANONICAL FEATURE ENGINEERING
+ ↓
+44-FEATURE MODEL CONTRACT
+ ↓
+CALIBRATED ML INFERENCE
+ ↓
+RISK PROBABILITIES
+ ↓
+DATA TRUST
+ ↓
+HISTORICAL CONTEXT
+ ↓
+WHAT CHANGED
+ ↓
+RISK + TRUST FUSION
+ ↓
+WELFARE RECOMMENDATIONS
+ ↓
+HUMAN REVIEW
+ ↓
+FOLLOW-UP
+```
+
+This creates a distinction between **AI inference** and the broader **decision-support platform**.
+
+---
+
+# 🧩 Architectural Principles
+
+### 1. Human Before Automation
+
+AI provides support; authorized humans retain decision authority.
+
+### 2. Welfare Before Discipline
+
+The platform is designed around welfare support rather than disciplinary classification.
+
+### 3. Context Before Conclusion
+
+Signals are accompanied by history, trust, and change information.
+
+### 4. Explainability
+
+The system can expose probabilities and feature contributions when available.
+
+### 5. Data Awareness
+
+The quality and completeness of input information are considered alongside model output.
+
+### 6. Backend Authority
+
+Feature engineering and model inference remain server-side.
+
+### 7. Privacy by Design
+
+Sensitive welfare information should be appropriately protected and accessed through authorized workflows.
+
+### 8. Responsible Deployment
+
+Synthetic-data demonstration is clearly separated from future operational deployment.
+
+---
+
+# ⚠️ Important Prototype Boundary
+
+The current implementation is an **SIH prototype**.
+
+It should not be interpreted as an operationally validated welfare-management system.
+
+Before operational use, the platform would require appropriate:
+
+- Authorized real-world data validation
+- Calibration evaluation
+- False-positive / false-negative analysis
+- Subgroup performance evaluation
+- Data-quality validation
+- Privacy review
+- Security assessment
+- Authentication and RBAC
+- Governance controls
+- Auditability
+- Model monitoring
+- Operational safety review
+
+### Current Data Boundary
+
+```text
+Current Prototype
+      │
+      ▼
+Synthetic Demonstration Data
+      │
+      ▼
+Prototype Model Inference
+      │
+      ▼
+Demonstration Welfare Signals
+```
+
+Any future operational system would need a separately governed and validated data pipeline.
 
 ---
 
 # 🏁 In One Line
 
-**Manobal-AI transforms voluntary welfare data into explainable welfare signals and contextual insights that help authorized officers identify changes earlier and provide appropriate human-led support.**
+> **Manobal-AI transforms voluntary welfare data into explainable welfare signals and contextual insights that help authorized officers identify changes earlier and provide appropriate human-led support.**
+
+---
+
+# ❤️ Final Principle
+
+<div align="center">
+
+## AI SHOULD ASSIST.
+
+## HUMANS SHOULD DECIDE.
+
+**Manobal-AI — Turning welfare signals into human-centered support.**
+
+**Smart India Hackathon 2026**
+
+</div>

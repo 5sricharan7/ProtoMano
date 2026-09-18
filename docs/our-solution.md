@@ -1,26 +1,30 @@
-🧠 Manobal-AI
+<div align="center">
 
-AI-Powered Personnel Welfare Signal & Human-in-the-Loop Decision-Support Platform
+# 🧠 Manobal-AI
 
-Manobal-AI is a Smart India Hackathon 2026 prototype designed to help authorized welfare personnel identify meaningful welfare signals earlier through voluntary check-ins, structured organizational data, machine-learning analysis, historical context, and human-led follow-up.
+### AI-Powered Personnel Welfare Signal & Human-in-the-Loop Decision-Support Platform
 
+<p>
+  <strong>Smart India Hackathon 2026 • Problem Statement 26186</strong>
+</p>
 
+<p>
+  A privacy-aware, human-centered prototype for identifying meaningful personnel welfare signals earlier through voluntary check-ins, structured organizational data, machine-learning analysis, historical context, and human-led follow-up.
+</p>
 
+</div>
 
+---
 
-
-
-
-Smart India Hackathon 2026 — Problem Statement 26186
-
-📌 Overview
+## 📌 Overview
 
 Personnel serving in CAPFs, Armed Forces, and other uniformed services can operate under demanding conditions involving extended deployments, irregular duty schedules, workload pressure, transfers, training commitments, family separation, and other operational challenges.
 
-The SIH problem statement calls for an AI-powered personnel stress and welfare monitoring system that can identify early indicators while protecting privacy, confidentiality, dignity, and organizational trust.
+The SIH problem statement calls for an AI-powered personnel stress and welfare monitoring system capable of identifying early indicators while protecting **privacy, confidentiality, dignity, and organizational trust**.
 
-Manobal-AI addresses this requirement through a human-in-the-loop welfare workflow:
+Manobal-AI addresses this through a human-in-the-loop welfare workflow:
 
+```text
 Voluntary Welfare Check-In
           ↓
 Organizational / Wellness Signals
@@ -31,7 +35,7 @@ Server-Side Feature Engineering
           ↓
 Calibrated LightGBM
           ↓
-Low / Moderate / High
+LOW / MODERATE / HIGH
 Welfare-Risk Signal
           ↓
 Data Trust + Historical Context
@@ -43,21 +47,34 @@ REVIEW / MONITOR / VERIFY DATA
 Authorized Human Review
           ↓
 Follow-Up / Intervention
+```
 
-The system is intentionally designed as decision support, not autonomous personnel decision-making.
+> **Core principle:** AI produces a signal. An authorized human makes the decision.
 
-🎯 Problem Statement
+Manobal-AI is intentionally designed as **decision support**, not autonomous personnel decision-making.
 
-The Challenge
+---
 
-Welfare concerns may emerge gradually through changes in workload, leave patterns, deployment conditions, wellness responses, and other indicators.
+## 🎯 Problem Statement
 
-Traditional identification can depend heavily on manual observation and self-reporting. At larger scale, this can make it difficult to consistently identify changes over time and prioritize cases that may warrant human attention.
+### The Challenge
 
-The SIH problem statement specifically highlights indicators such as leave patterns, deployment history, duty schedules, transfer frequency, training commitments, workload trends, voluntary wellness assessments, and authorized wellness data.
+Welfare concerns may emerge gradually through changes in:
 
-The core gap
+- Workload
+- Leave patterns
+- Deployment conditions
+- Duty schedules
+- Transfer frequency
+- Training commitments
+- Voluntary wellness assessments
+- Other authorized wellness indicators
 
+Traditional identification can depend heavily on manual observation and self-reporting. At larger scale, this can make it difficult to consistently identify meaningful changes over time and prioritize cases that may warrant human attention.
+
+### The Core Gap
+
+```text
 Operational & Welfare Data
             │
             ▼
@@ -76,124 +93,125 @@ Operational & Welfare Data
             ▼
  Difficulty Identifying
  Meaningful Changes Early
+```
 
-💡 Our Solution — Manobal-AI
+---
+
+# 💡 Our Solution — Manobal-AI
 
 Manobal-AI converts authorized and voluntarily provided welfare information into structured welfare signals and contextual insights for human review.
 
-                MANOBAL-AI
-                     │
-       ┌─────────────┴─────────────┐
-       │                           │
-       ▼                           ▼
-   PERSONNEL                WELFARE OFFICER
-       │                           │
-       ▼                           ▼
- Voluntary Check-In          Officer Workspace
-       │                           │
-       └─────────────┬─────────────┘
-                     ▼
-              Welfare Records
-                     │
-                     ▼
-              AI Risk Analysis
-                     │
-          ┌──────────┴──────────┐
-          ▼                     ▼
-      Risk Signal           Data Trust
-          │                     │
-          └──────────┬──────────┘
-                     ▼
-             Historical Context
-                     │
-                     ▼
-              Human Review
-                     │
-                     ▼
-             Follow-Up / Support
+```text
+                         MANOBAL-AI
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+              ▼                               ▼
+          PERSONNEL                     WELFARE OFFICER
+              │                               │
+              ▼                               ▼
+      Voluntary Check-In               Officer Workspace
+              │                               │
+              └───────────────┬───────────────┘
+                              ▼
+                       Welfare Records
+                              │
+                              ▼
+                       AI Risk Analysis
+                       ┌──────┴──────┐
+                       ▼             ▼
+                  Risk Signal    Data Trust
+                       │             │
+                       └──────┬──────┘
+                              ▼
+                      Historical Context
+                              │
+                              ▼
+                         Human Review
+                              │
+                              ▼
+                       Follow-Up / Support
+```
 
-What makes the solution different?
+### What Makes the Solution Different?
 
+```text
 DATA
- ↓
+  ↓
 MODEL SIGNAL
- ↓
+  ↓
 DATA TRUST
- ↓
+  ↓
 HISTORICAL CONTEXT
- ↓
+  ↓
 WHAT CHANGED
- ↓
+  ↓
 RISK + TRUST FUSION
- ↓
+  ↓
 HUMAN REVIEW
+```
 
-✨ Key Features
+The platform does not treat a single model prediction as a standalone conclusion. It adds contextual information so authorized welfare personnel can review the signal in a broader longitudinal context.
 
-👤 Personnel Welfare Workspace
+---
 
-Voluntary welfare check-ins
+# ✨ Key Features
 
-Weekly record submission
+## 👤 Personnel Welfare Workspace
 
-AI welfare analysis
+- Voluntary welfare check-ins
+- Weekly record submission
+- AI welfare analysis
+- Low / Moderate / High welfare-risk signal
+- Historical assessment timeline
+- Personal trajectory view
+- **What Changed** insights
+- Data-trust indication
+- Welfare recommendations
+- Privacy and ethics information
 
-Low / Moderate / High welfare-risk signal
+## 🧑‍💼 Welfare Officer Command Workspace
 
-Historical assessment timeline
+- Personnel welfare overview
+- Latest assessment signals
+- Historical assessment inspection
+- Risk + trust context
+- Trajectory analysis
+- **What Changed** information
+- Cases requiring human review
+- Intervention desk
+- Intervention history
+- Structured follow-up workflow
 
-Personal trajectory view
+---
 
-“What Changed” insights
+# 🤖 AI-Powered Welfare Signal
 
-Data-trust indication
-
-Welfare recommendations
-
-Privacy and ethics information
-
-🧑‍💼 Welfare Officer Command Workspace
-
-Personnel welfare overview
-
-Latest assessment signals
-
-Historical assessment inspection
-
-Risk + trust context
-
-Trajectory analysis
-
-“What Changed” information
-
-Cases requiring human review
-
-Intervention desk
-
-Intervention history
-
-Structured follow-up workflow
-
-🤖 AI-Powered Welfare Signal
-
-The current prototype uses a calibrated LightGBM multiclass classifier.
+The current prototype uses a **calibrated LightGBM multiclass classifier**.
 
 The model expects:
 
-44 numerical features
+| Property | Current Value |
+|---|---|
+| Model | Calibrated LightGBM |
+| Feature Count | **44 numerical features** |
+| Model Version | `0.2.0-sih-final` |
+| Feature Version | `1.1.0` |
+| Feature Contract | `artifacts/model_metadata.json` |
 
-with their exact order defined by:
+The exact feature order is controlled by:
 
+```text
 artifacts/model_metadata.json
+```
 
-Current metadata:
+This makes the model input contract explicit and prevents frontend-generated feature vectors from becoming an alternate source of truth.
 
-Model Version:    0.2.0-sih-final
-Feature Version:  1.1.0
-Feature Count:    44
+---
 
-🧠 AI Inference Pipeline
+# 🧠 AI Inference Pipeline
 
+```text
 Raw Weekly Records
         │
         ▼
@@ -211,72 +229,105 @@ Preprocessing Adapter
         ▼
 Calibrated LightGBM
         │
-        ├───────────────┐
-        ▼               ▼
+        ├──────────────────┐
+        ▼                  ▼
 Class Probabilities   Feature Contributions
-        │               │
-        └───────┬───────┘
-                ▼
-       Welfare-Risk Signal
-                │
-       ┌────────┼────────┐
-       ▼        ▼        ▼
-      LOW   MODERATE    HIGH
+        │                  │
+        └─────────┬────────┘
+                  ▼
+         Welfare-Risk Signal
+                  │
+          ┌───────┼───────┐
+          ▼       ▼       ▼
+         LOW   MODERATE   HIGH
+```
 
-The frontend does not execute the model. It sends raw weekly records to the backend, where canonical feature engineering and inference are performed.
+### Backend-Authoritative Inference
 
-Pre-engineered client-supplied feature vectors are rejected.
+The frontend **does not execute the model**.
 
-📊 Risk Signal
+Instead:
 
-Signal
+1. The frontend sends raw weekly records.
+2. The backend validates the request.
+3. Canonical feature engineering runs server-side.
+4. The backend constructs the exact 44-feature vector.
+5. The preprocessing pipeline is applied.
+6. The calibrated LightGBM model generates predictions.
+7. Class probabilities and feature contributions are returned.
+8. The platform enriches the model signal with trust and historical context.
 
-Interpretation
+> **Pre-engineered client-supplied feature vectors are rejected.**
 
-🟢 Low
+This establishes the backend as the authoritative source of ML input construction.
 
-Lower model-indicated welfare-risk signal
+---
 
-🟡 Moderate
+# 📊 Risk Signal
 
-Intermediate model-indicated welfare-risk signal
+| Signal | Interpretation |
+|---|---|
+| 🟢 **Low** | Lower model-indicated welfare-risk signal |
+| 🟡 **Moderate** | Intermediate model-indicated welfare-risk signal |
+| 🔴 **High** | Higher model-indicated welfare-risk signal |
 
-🔴 High
+### Important Boundary
 
-Higher model-indicated welfare-risk signal
+These are **risk signals, not diagnoses**.
 
-These are risk signals, not diagnoses.
+The model output is not intended to represent:
 
-🔍 Data Trust & Risk Fusion
+- A medical diagnosis
+- A psychological assessment
+- A disciplinary classification
+- A self-harm prediction
+- An autonomous welfare decision
+
+---
+
+# 🔍 Data Trust & Risk Fusion
 
 A model prediction is only as useful as the information available to the system.
 
-Manobal-AI therefore combines the model signal with a data-trust heuristic and historical context.
+Manobal-AI therefore combines:
 
+```text
              MODEL RISK
                  │
                  ▼
            Risk Signal
                  │
-                 +
-             Data Trust
-                 │
-                 +
-          Historical Context
-                 │
-                 ▼
-          Risk + Trust Fusion
-                 │
-       ┌─────────┼─────────┐
-       ▼         ▼         ▼
-    REVIEW    MONITOR   VERIFY DATA
+                 ├───────────────┐
+                 │               │
+                 ▼               ▼
+            Data Trust     Historical Context
+                 │               │
+                 └───────┬───────┘
+                         ▼
+                Risk + Trust Fusion
+                         │
+                ┌────────┼────────┐
+                ▼        ▼        ▼
+             REVIEW   MONITOR  VERIFY DATA
+```
 
-Trajectory, early warning, What Changed, data trust, fusion, and recommendations are platform logic / heuristics, not additional trained models.
+### Decision-Support Interpretation
 
-📈 Historical Intelligence
+| Output | Purpose |
+|---|---|
+| `REVIEW` | The combined context warrants authorized human review |
+| `MONITOR` | The available information supports continued observation |
+| `VERIFY DATA` | Data quality/trust limitations should be checked before relying heavily on the signal |
+
+> Trajectory, early warning, What Changed, data trust, fusion, and recommendations are **platform logic / heuristics**, not additional trained models.
+
+---
+
+# 📈 Historical Intelligence
 
 Manobal-AI stores previous assessments so that a welfare officer can examine change over time.
 
+```text
 Assessment 1
      │
      ▼
@@ -293,18 +344,32 @@ Trajectory
      │
      ▼
 What Changed
+```
 
-This helps the system provide context rather than treating one model prediction as an isolated conclusion.
+This longitudinal context helps the platform surface changes rather than treating every prediction as an isolated event.
 
-🧑‍💼 Human-in-the-Loop Decision Support
+### Historical Context Enables
 
-The central principle is:
+- Trajectory inspection
+- Early-warning logic
+- Change detection
+- Comparison with previous assessments
+- Contextual review of current signals
 
+---
+
+# 🧑‍💼 Human-in-the-Loop Decision Support
+
+## The Central Principle
+
+```text
 AI = SIGNAL
-Human = DECISION
+HUMAN = DECISION
+```
 
-The system follows:
+The workflow is:
 
+```text
 AI Model
    │
    ▼
@@ -321,20 +386,26 @@ Human Review
    │
    ▼
 Appropriate Follow-Up
+```
 
-The AI does NOT:
+## 🚫 What the AI Does NOT Do
 
-❌ Diagnose mental-health conditions
-❌ Predict self-harm
-❌ Make disciplinary decisions
-❌ Automatically contact personnel
-❌ Automatically initiate welfare action
-❌ Replace welfare officers
+- ❌ Diagnose mental-health conditions
+- ❌ Predict self-harm
+- ❌ Make disciplinary decisions
+- ❌ Automatically contact personnel
+- ❌ Automatically initiate welfare action
+- ❌ Replace welfare officers
 
-🧑‍💼 Intervention Desk
+The prototype records and supports **human review** rather than allowing the ML model to execute welfare interventions autonomously.
+
+---
+
+# 🧑‍💼 Intervention Desk
 
 When human review indicates that follow-up is appropriate:
 
+```text
 Welfare Signal
       │
       ▼
@@ -351,45 +422,48 @@ Intervention / Follow-Up
       │
       ▼
 MongoDB Record
+```
 
-The prototype records human review rather than allowing the ML model to execute an intervention automatically.
+The intervention layer therefore preserves a clear boundary between:
 
-🗄️ Database
+```text
+MODEL OUTPUT
+     ↓
+HUMAN REVIEW
+     ↓
+HUMAN ACTION
+```
 
-Manobal-AI uses MongoDB through the Motor async driver.
+---
 
+# 🗄️ Database Architecture
+
+Manobal-AI uses **MongoDB** through the **Motor async driver**.
+
+```text
 Personnel
    │
    ├── Welfare Records
    ├── Risk Assessments
    └── Intervention History
+```
 
-Data
+| Collection / Data | Purpose |
+|---|---|
+| **Personnel** | Synthetic / demo personnel profiles |
+| **Welfare Records** | Weekly welfare information |
+| **Risk Assessments** | Model outputs and contextual results |
+| **Interventions** | Human review and follow-up records |
 
-Purpose
+---
 
-Personnel
+# 🧪 Synthetic Data & Validation
 
-Synthetic / demo personnel profiles
-
-Welfare Records
-
-Weekly welfare information
-
-Risk Assessments
-
-Model outputs and contextual results
-
-Interventions
-
-Human review and follow-up records
-
-🧪 Synthetic Data & Validation
-
-The current prototype is trained on synthetic data.
+The current prototype is trained on **synthetic data**.
 
 All demo personnel and organizational values are synthetic and labeled as demo data.
 
+```text
 Synthetic Records
        ↓
 Model Training
@@ -399,11 +473,27 @@ LightGBM Artifact
 Prototype Inference
        ↓
 Demo Welfare Signals
+```
 
-Before operational use, appropriately authorized data would require validation for calibration, false positives/negatives, subgroup performance, data quality, drift, privacy, security, and governance.
+Before operational use, appropriately authorized data would require validation for:
 
-🏗️ Architecture
+- Calibration
+- False positives / false negatives
+- Subgroup performance
+- Data quality
+- Model drift
+- Privacy
+- Security
+- Governance
+- Operational suitability
 
+> **The current prototype should not be interpreted as operationally validated simply because the model pipeline runs successfully.**
+
+---
+
+# 🏗️ System Architecture
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                         FRONTEND                            │
 │                Vite + React + TypeScript                    │
@@ -416,62 +506,110 @@ Before operational use, appropriately authorized data would require validation f
 ┌─────────────────────────────────────────────────────────────┐
 │                          FASTAPI                            │
 │                       backend/server.py                     │
-│ Welfare API │ Prediction │ History │ Intervention APIs     │
+│                                                             │
+│ Welfare API │ Prediction │ History │ Intervention APIs      │
 └───────────────┬──────────────────────────────┬──────────────┘
                 │                              │
                 ▼                              ▼
 ┌──────────────────────────┐       ┌──────────────────────────┐
 │      ML INFERENCE        │       │         MONGODB          │
+│                          │       │                          │
 │ Feature Engineering      │       │ Personnel                │
 │ Preprocessing            │       │ Assessments              │
-│ LightGBM                 │       │ Interventions             │
-│ Probabilities            │       │ Welfare Records           │
+│ LightGBM                 │       │ Interventions            │
+│ Probabilities            │       │ Welfare Records          │
+│ Contributions            │       │ Historical Context       │
 └──────────────────────────┘       └──────────────────────────┘
+```
 
-📦 Model Artifacts
+### Architectural Boundary
 
+```text
+                 ┌─────────────────────────────┐
+                 │           FRONTEND           │
+                 │     Presentation Layer       │
+                 └──────────────┬──────────────┘
+                                │
+                         REST / JSON
+                                │
+                                ▼
+                 ┌─────────────────────────────┐
+                 │           BACKEND           │
+                 │      Authoritative Layer    │
+                 ├─────────────────────────────┤
+                 │ Validation                  │
+                 │ Feature Engineering         │
+                 │ ML Inference                │
+                 │ Decision Support             │
+                 │ History                     │
+                 │ Recommendations              │
+                 │ Persistence                 │
+                 └──────────────┬──────────────┘
+                                │
+                                ▼
+                         ┌─────────────┐
+                         │  MongoDB    │
+                         └─────────────┘
+```
+
+---
+
+# 📦 Model Artifacts
+
+```text
 artifacts/
 ├── risk_model.pkl
 ├── preprocessing_pipeline.pkl
 ├── baseline_model.pkl
 ├── model_metadata.json
 └── MODEL_CARD.md
+```
 
-Artifact
+| Artifact | Purpose |
+|---|---|
+| `risk_model.pkl` | Calibrated LightGBM classifier |
+| `preprocessing_pipeline.pkl` | Runtime preprocessing transformer |
+| `baseline_model.pkl` | Baseline model artifact |
+| `model_metadata.json` | Feature ordering, bands, versions |
+| `MODEL_CARD.md` | Intended use and limitations |
 
-Purpose
+### Model Artifact Contract
 
-risk_model.pkl
+The runtime inference contract is defined by the combination of:
 
-Calibrated LightGBM classifier
+```text
+Model Artifact
+      +
+Preprocessing Pipeline
+      +
+Model Metadata
+      +
+Canonical Feature Engineering
+```
 
-preprocessing_pipeline.pkl
+All four should remain version-compatible.
 
-Runtime preprocessing transformer
+---
 
-baseline_model.pkl
+# 🧩 Repository Structure
 
-Baseline model artifact
-
-model_metadata.json
-
-Feature ordering, bands, versions
-
-MODEL_CARD.md
-
-Intended use and limitations
-
-🧩 Repository Structure
-
+```text
 ProtoMano/
 │
 ├── artifacts/
+│   ├── risk_model.pkl
+│   ├── preprocessing_pipeline.pkl
+│   ├── baseline_model.pkl
+│   ├── model_metadata.json
+│   └── MODEL_CARD.md
+│
 ├── backend/
 │   ├── server.py
 │   ├── routers/
 │   ├── lib/
 │   ├── tests/
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── .env
 │
 ├── frontend/
 │   ├── src/
@@ -479,217 +617,223 @@ ProtoMano/
 │   └── yarn.lock
 │
 ├── tests/
+│
 └── memory/
     └── SPEC.md
+```
 
-🔌 API
+---
+
+# 🔌 API
 
 Local backend:
 
+```text
 http://localhost:8001
+```
 
-Prediction
+## Core Endpoints
 
-POST /api/predict
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/predict` | Analyze raw weekly welfare records and generate the welfare signal |
+| `POST` | `/api/demo/seed` | Seed synthetic demo data |
+| `GET` | `/api/demo/personnel` | Retrieve demo personnel |
+| `GET` | `/api/model-info` | Expose model metadata |
+| `GET` | Personnel / Welfare routes | Retrieve personnel and welfare context |
+| `GET` | History routes | Retrieve historical assessments |
+| `POST` | Intervention routes | Record human-led follow-up |
 
-Demo Seeding
+> The prediction endpoint accepts **raw weekly records** and performs canonical feature engineering server-side.
 
-POST /api/demo/seed
+---
 
-Demo Personnel
+# 🛠️ Technology Stack
 
-GET /api/demo/personnel
+## Backend
 
-The prediction endpoint accepts raw weekly records and performs feature engineering server-side.
+| Technology | Purpose |
+|---|---|
+| **Python** | Backend + ML ecosystem |
+| **FastAPI** | REST API |
+| **Motor** | Async MongoDB driver |
+| **MongoDB** | Persistent data |
+| **LightGBM** | Multiclass welfare classifier |
+| **scikit-learn** | Preprocessing / calibration |
+| **joblib** | Serialized model artifacts |
+| **pytest** | Backend testing |
 
-🛠️ Technology Stack
+## Frontend
 
-Backend
+| Technology | Purpose |
+|---|---|
+| **Vite** | Frontend tooling |
+| **React** | User interface |
+| **TypeScript** | Type safety |
 
-Technology
+## Machine Learning & Decision Support
 
-Purpose
+| Component | Purpose |
+|---|---|
+| **LightGBM** | Welfare-risk classification |
+| **Preprocessing Pipeline** | Feature transformation |
+| **Calibration** | Probability calibration |
+| **Feature Contributions** | Model interpretation |
+| **Historical Heuristics** | Trajectory / What Changed |
+| **Rule Logic** | Welfare recommendations |
 
-Python
+---
 
-Backend + ML ecosystem
-
-FastAPI
-
-REST API
-
-Motor
-
-Async MongoDB driver
-
-MongoDB
-
-Persistent data
-
-LightGBM
-
-Multiclass welfare classifier
-
-scikit-learn
-
-Preprocessing / calibration
-
-joblib
-
-Serialized model artifacts
-
-pytest
-
-Backend testing
-
-Frontend
-
-Technology
-
-Purpose
-
-Vite
-
-Frontend tooling
-
-React
-
-User interface
-
-TypeScript
-
-Type safety
-
-Machine Learning
-
-Component
-
-Purpose
-
-LightGBM
-
-Risk classification
-
-Preprocessing Pipeline
-
-Feature transformation
-
-Calibration
-
-Probability calibration
-
-Feature Contributions
-
-Model interpretation
-
-Historical Heuristics
-
-Trajectory / What Changed
-
-Rule Logic
-
-Welfare recommendations
-
-🔐 Security & Privacy
+# 🔐 Security & Privacy
 
 Welfare-related information can be highly sensitive.
 
 The production architecture should include:
 
-Real authentication
+### Identity & Access
 
-Role-based access control
+- Real authentication
+- Role-based access control
+- Secure sessions
+- Authorized personnel boundaries
 
-HTTPS
+### Transport & Infrastructure
 
-Secure database credentials
+- HTTPS
+- Secure database credentials
+- Secrets management
+- Restricted CORS
+- Rate limiting
 
-Secrets management
+### Governance & Data Protection
 
-Restricted CORS
+- Audit logging
+- Data minimization
+- Retention policies
+- Model governance
+- Privacy review
+- Security review
 
-Rate limiting
+### Current Prototype Boundary
 
-Audit logging
+> The current repository is a **prototype** and does not implement production authentication or RBAC.
 
-Data minimization
+The prototype should therefore be treated as a demonstration of the technical workflow rather than a deployment-ready welfare-management system.
 
-Retention policies
+---
 
-Model governance
+# 🚀 Getting Started
 
-Privacy and security review
-
-The current repository is a prototype and does not implement production authentication or RBAC.
-
-🚀 Getting Started
-
-Prerequisites
+## Prerequisites
 
 Install:
 
-Python 3
+- Python 3
+- `pip`
+- Node.js
+- Yarn
+- MongoDB
+- Git
 
-pip
+---
 
-Node.js
+## 1. Clone the Repository
 
-Yarn
-
-MongoDB
-
-Git
-
-Backend
-
+```bash
 git clone <repository-url>
 cd ProtoMano
+```
+
+---
+
+## 2. Configure the Backend
+
+```bash
 cd backend
 pip install -r requirements.txt
+```
 
 Create:
 
+```text
 backend/.env
+```
 
 Example:
 
+```env
 MONGO_URL=mongodb://localhost:27017
 DB_NAME=manobal_ai
+```
 
-Run:
+---
 
+## 3. Start the Backend
+
+```bash
 uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+```
 
 Backend:
 
+```text
 http://localhost:8001
+```
 
-Frontend
+---
 
+## 4. Start the Frontend
+
+From the repository root:
+
+```bash
 cd frontend
 yarn install
 yarn dev
+```
 
 Frontend:
 
+```text
 http://localhost:3000
+```
 
-Vite proxies /api to the backend.
+The Vite development server proxies:
 
-🧪 Testing
+```text
+/api
+```
 
-Start the backend first, then from backend/:
+to the FastAPI backend.
 
+---
+
+# 🧪 Testing
+
+Start the backend first, then from `backend/`:
+
+```bash
 pytest
+```
 
 For serial execution:
 
+```bash
 pytest -n 0
+```
 
-The backend tests cover welfare prediction, demo seeding, interventions, and reliability-oriented behavior.
+The backend tests cover areas including:
 
-🔄 End-to-End Workflow
+- Welfare prediction
+- Demo seeding
+- Interventions
+- Reliability-oriented behavior
 
+---
+
+# 🔄 End-to-End Workflow
+
+```text
                     PERSONNEL
                         │
                         ▼
@@ -712,7 +856,7 @@ The backend tests cover welfare prediction, demo seeding, interventions, and rel
                         │
              ┌──────────┴──────────┐
              ▼                     ▼
-         Data Trust            History
+         Data Trust             History
              │                     │
              └──────────┬──────────┘
                         ▼
@@ -733,174 +877,148 @@ The backend tests cover welfare prediction, demo seeding, interventions, and rel
              │
              ▼
        Follow-Up Record
+```
 
-🗺️ Roadmap
+---
 
-Phase 1 — Core Prototype
+# 🗺️ Roadmap
 
-FastAPI backend
+## Phase 1 — Core Prototype
 
-React frontend
+- [x] FastAPI backend
+- [x] React frontend
+- [x] MongoDB integration
+- [x] Model artifact loading
+- [x] Welfare prediction API
+- [x] Personnel workflow
+- [x] Officer workspace
+- [x] Demo data seeding
+- [x] Intervention recording
 
-MongoDB integration
+## Phase 2 — AI Decision Support
 
-Model artifact loading
+- [x] LightGBM integration
+- [x] 44-feature pipeline
+- [x] Calibrated probabilities
+- [x] Feature contributions
+- [x] Data-trust heuristic
+- [x] Risk + trust fusion
+- [x] Historical trajectory
+- [x] What Changed
+- [x] Early-warning logic
+- [x] Welfare recommendations
 
-Welfare prediction API
+## Phase 3 — Validation
 
-Personnel workflow
+- [ ] Authorized real-world dataset validation
+- [ ] Calibration evaluation
+- [ ] False-positive / false-negative analysis
+- [ ] Subgroup performance analysis
+- [ ] Data-quality monitoring
+- [ ] Model drift detection
+- [ ] Model version tracking
+- [ ] Formal privacy review
 
-Officer workspace
+## Phase 4 — Production Readiness
 
-Demo data seeding
+- [ ] Production authentication
+- [ ] RBAC
+- [ ] Secure sessions
+- [ ] HTTPS
+- [ ] Secrets management
+- [ ] Audit logging
+- [ ] Monitoring
+- [ ] Secure deployment
+- [ ] Governance framework
 
-Intervention recording
+## Phase 5 — Advanced Intelligence
 
-Phase 2 — AI Decision Support
+- [ ] Larger authorized datasets
+- [ ] Longitudinal modeling
+- [ ] Improved explainability
+- [ ] Human feedback loops
+- [ ] Privacy-preserving analytics
+- [ ] Advanced anomaly detection
+- [ ] Model drift monitoring
 
-LightGBM integration
+---
 
-44-feature pipeline
+# 🧱 Design Principles
 
-Calibrated probabilities
-
-Feature contributions
-
-Data-trust heuristic
-
-Risk + trust fusion
-
-Historical trajectory
-
-What Changed
-
-Early-warning logic
-
-Welfare recommendations
-
-Phase 3 — Validation
-
-Authorized real-world dataset validation
-
-Calibration evaluation
-
-False-positive / false-negative analysis
-
-Subgroup performance analysis
-
-Data-quality monitoring
-
-Model drift detection
-
-Model version tracking
-
-Formal privacy review
-
-Phase 4 — Production Readiness
-
-Production authentication
-
-RBAC
-
-Secure sessions
-
-HTTPS
-
-Secrets management
-
-Audit logging
-
-Monitoring
-
-Secure deployment
-
-Governance framework
-
-Phase 5 — Advanced Intelligence
-
-Larger authorized datasets
-
-Longitudinal modeling
-
-Improved explainability
-
-Human feedback loops
-
-Privacy-preserving analytics
-
-Advanced anomaly detection
-
-Model drift monitoring
-
-🧱 Design Principles
-
-1. AI is decision support
+### 1. AI is Decision Support
 
 The model produces signals; it does not make autonomous welfare decisions.
 
-2. Human-in-the-loop
+### 2. Human-in-the-Loop
 
-Human officers remain responsible for interpreting signals and determining appropriate follow-up.
+Authorized human officers remain responsible for interpreting signals and determining appropriate follow-up.
 
-3. Backend is the source of truth
+### 3. Backend is the Source of Truth
 
 Feature engineering and inference are performed server-side.
 
-4. Data trust matters
+### 4. Data Trust Matters
 
 Risk signals should be considered alongside data quality and trust.
 
-5. Historical context matters
+### 5. Historical Context Matters
 
 The platform considers trends and changes over time.
 
-6. Explainability matters
+### 6. Explainability Matters
 
 Feature contributions and contextual changes can help officers understand the signal.
 
-7. Privacy by design
+### 7. Privacy by Design
 
 Sensitive welfare information should be minimized, protected, and accessed through appropriate authorization.
 
-8. Synthetic data during prototyping
+### 8. Synthetic Data During Prototyping
 
 The current model and demo use synthetic data.
 
-9. No diagnosis
+### 9. No Diagnosis
 
 A welfare-risk signal is not a medical or psychological diagnosis.
 
-10. No automated intervention
+### 10. No Automated Intervention
 
 The platform supports human-led follow-up rather than executing autonomous action.
 
-📊 Current Project Status
+---
 
-Status: Active SIH 2026 Prototype
+# 📊 Current Project Status
 
-Frontend                         ✅
-FastAPI Backend                  ✅
-MongoDB Integration              ✅
-ML Artifact Loading              ✅
-LightGBM Inference               ✅
-44-Feature Pipeline              ✅
-Risk Signal                      ✅
-Class Probabilities              ✅
-Feature Contributions            ✅
-Data Trust                       ✅
-Risk + Trust Fusion              ✅
-Historical Trajectory            ✅
-What Changed                     ✅
-Welfare Recommendations          ✅
-Demo Data Seeding                ✅
-Officer Workspace                ✅
-Intervention Recording           ✅
-Production Authentication        ⏸️ Planned
-Real-World Validation            ⏸️ Required
-Production Deployment            ⏸️ Future
+**Status: Active SIH 2026 Prototype**
 
-👥 User Roles at a Glance
+| Capability | Status |
+|---|:---:|
+| Frontend | ✅ |
+| FastAPI Backend | ✅ |
+| MongoDB Integration | ✅ |
+| ML Artifact Loading | ✅ |
+| LightGBM Inference | ✅ |
+| 44-Feature Pipeline | ✅ |
+| Risk Signal | ✅ |
+| Class Probabilities | ✅ |
+| Feature Contributions | ✅ |
+| Data Trust | ✅ |
+| Risk + Trust Fusion | ✅ |
+| Historical Trajectory | ✅ |
+| What Changed | ✅ |
+| Welfare Recommendations | ✅ |
+| Demo Data Seeding | ✅ |
+| Officer Workspace | ✅ |
+| Intervention Recording | ✅ |
+| Production Authentication | ⏸️ Planned |
+| Real-World Validation | ⏸️ Required |
+| Production Deployment | ⏸️ Future |
 
+---
+
+# 👥 User Roles at a Glance
+
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                         MANOBAL-AI                           │
 ├──────────────────────────────┬───────────────────────────────┤
@@ -914,9 +1032,19 @@ Production Deployment            ⏸️ Future
 │ View Recommendations         │ Record Intervention             │
 │ Privacy / Ethics             │ Follow-Up Workflow              │
 └──────────────────────────────┴───────────────────────────────┘
+```
 
-🌐 Future Scalability
+### Role Boundary
 
+The prototype uses a role-oriented interface to demonstrate the intended workflow. Production deployment would require formal authentication, authorization, and RBAC.
+
+---
+
+# 🌐 Future Scalability
+
+The prototype can evolve toward a more modular production architecture:
+
+```text
                          API Gateway
                               │
                ┌──────────────┼──────────────┐
@@ -935,9 +1063,11 @@ Production Deployment            ⏸️ Future
               └───────────────┼───────────────┘
                               ▼
                            MongoDB
+```
 
-Potential future infrastructure:
+### Potential Future Infrastructure
 
+```text
 Redis
 Background Jobs
 Model Serving
@@ -946,11 +1076,17 @@ Audit Logging
 Data Quality Monitoring
 Model Drift Monitoring
 Secure Cloud Deployment
+```
 
-🛡️ Responsible AI
+These components represent a future scalability direction rather than capabilities claimed for the current prototype.
 
-Manobal-AI is designed around:
+---
 
+# 🛡️ Responsible AI
+
+Manobal-AI is designed around multiple evaluation and governance dimensions:
+
+```text
 Predictive Performance
         +
 Calibration
@@ -968,19 +1104,31 @@ Security
 Human Oversight
         +
 Operational Safety
+```
 
-The current model uses synthetic data and is not validated for operational deployment.
+The current model uses **synthetic data** and is **not validated for operational deployment**.
 
-🌱 Vision
+A future operational system would require appropriate governance, validation, authorization, security controls, and privacy review before use with real personnel data.
+
+---
+
+# 🌱 Vision
 
 Manobal-AI aims to make personnel welfare support more:
 
-Proactive. Human-Centered. Explainable. Privacy-Aware. Data-Informed.
+**Proactive. Human-Centered. Explainable. Privacy-Aware. Data-Informed.**
 
 The long-term vision is not to replace welfare officers with AI.
 
-It is to provide them with better information, better context, and better visibility into meaningful changes so that human-led welfare support can happen earlier and more thoughtfully.
+It is to provide them with:
 
+- Better information
+- Better context
+- Better visibility into meaningful changes
+- Structured decision-support
+- Earlier opportunities for human-led welfare support
+
+```text
               NOTICE EARLIER
                     ↓
              UNDERSTAND BETTER
@@ -988,11 +1136,26 @@ It is to provide them with better information, better context, and better visibi
               REVIEW HUMANLY
                     ↓
                   SUPPORT
+```
+
+---
+
+# 🏆 Smart India Hackathon 2026
+
+**Manobal-AI** is developed as a **Smart India Hackathon 2026 prototype** addressing **Problem Statement 26186**.
+
+The project demonstrates how machine learning, structured welfare data, historical context, and human oversight can be combined into a welfare decision-support workflow while keeping the human reviewer at the center of the process.
+
+---
+
+<div align="center">
+
+## 🧠 Manobal-AI
+
+### Turning Welfare Signals into Human-Centered Support
+
+**AI should assist. Humans should decide.**
 
 ❤️ Built for Smart India Hackathon 2026
 
-Manobal-AI
-
-Turning Welfare Signals into Human-Centered Support
-
-AI should assist. Humans should decide.
+</div>
