@@ -1,110 +1,103 @@
-rary
-/
-Manobal-AI-COMPLETE-OVERVIEW.md
+<div align="center">
 
+# 🧠 Manobal-AI
 
-MANOBAL-AI
-AI-Assisted Personnel Welfare Intelligence & Human-in-the-Loop Decision Support Platform
-AI should assist. Humans should decide.
+### AI-Assisted Personnel Welfare Intelligence & Human-in-the-Loop Decision Support Platform
 
-📌 Table of Contents
-Project Overview
+**Smart India Hackathon 2026 • Problem Statement 26186**
 
-Executive Synopsis
+> **AI should assist. Humans should decide.**
 
-Problem Statement
+<p>
+  A privacy-aware, welfare-first platform that transforms voluntary welfare information
+  into contextual AI-assisted signals for authorized human review.
+</p>
 
-Problem Analysis
+</div>
 
-Our Solution --- Manobal-AI
+---
 
-Vision
+## 📚 Documentation
 
-Mission
+- [📘 System Architecture](architecture.md)
+- [⚙️ Backend Architecture](backend-architecture.md)
+- [🏠 Project README](README.md)
 
-Objectives
+---
 
-Target Users
+## 🧭 Contents
 
-Core Use Case
+- [Project Overview](#-project-overview)
+- [Executive Synopsis](#-executive-synopsis)
+- [Problem Statement](#-problem-statement)
+- [Our Solution](#-our-solution--manobal-ai)
+- [Vision, Mission & Objectives](#-vision)
+- [Target Users](#-target-users)
+- [Key Features](#-key-features)
+- [System Workflow](#-complete-system-workflow)
+- [AI/ML Architecture](#-aiml-overview)
+- [Decision Support](#-human-in-the-loop)
+- [System Architecture](#-system-architecture)
+- [Technology Stack](#-technology-stack)
+- [Security & Responsible AI](#-security--privacy)
+- [Prototype Scope](#-prototype-scope--limitations)
+- [Setup & Testing](#-installation--setup)
+- [Implementation Status](#-implementation-status)
+- [Production Roadmap](#-production-roadmap)
+- [Future Scalability](#-future-scalability)
+- [SDG & SIH Context](#-sdg-alignment)
+- [Design Principles](#-design-principles)
+- [Why Manobal-AI](#-why-manobal-ai)
+- [Project Summary](#-project-summary)
+- [Final Product Flow](#-complete-product-flow-at-a-glance)
 
-Key Features
+---
 
-Complete System Workflow
+## 🚀 Platform at a Glance
 
-Personnel Experience
+| Area | Current Implementation |
+|---|---|
+| **Frontend** | React + TypeScript + Vite |
+| **Backend** | FastAPI + Python |
+| **Database** | MongoDB + Motor |
+| **ML Model** | Calibrated LightGBM multiclass classifier |
+| **ML Input** | 44 canonical numeric features |
+| **Model Version** | `0.2.0-sih-final` |
+| **Feature Version** | `1.1.0` |
+| **Decision Support** | Risk + Data Trust + Historical Context |
+| **Explainability** | Class probabilities + feature contributions when available |
+| **Human Oversight** | Welfare officer review before follow-up |
+| **Demo Data** | Synthetic |
+| **Current Stage** | SIH 2026 prototype |
+| **Operational Deployment** | Requires authorized validation, security, governance and formal evaluation |
 
-Welfare Officer Experience
+### Core Architecture
 
-AI/ML Overview
-
-AI Inference Pipeline
-
-44-Feature Architecture
-
-Risk Signal
-
-Data Trust
-
+```text
+Voluntary Welfare Data
+        ↓
+Canonical Feature Engineering
+        ↓
+44-Feature ML Contract
+        ↓
+Calibrated LightGBM
+        ↓
+Risk Signal + Probabilities
+        ↓
+Data Trust + Historical Context
+        ↓
 Risk + Trust Fusion
-
-Historical Intelligence
-
-What Changed
-
+        ↓
 Welfare Recommendations
+        ↓
+Authorized Human Review
+        ↓
+Follow-Up / Intervention Record
+```
 
-Explainability
+> **Architectural boundary:** the platform surfaces signals and context; it does not autonomously diagnose, discipline, contact, or intervene.
 
-Human-in-the-Loop
-
-Intervention Desk
-
-System Architecture
-
-Backend Architecture
-
-Frontend Architecture
-
-Database Architecture
-
-API Architecture
-
-ML Artifact Architecture
-
-Repository Structure
-
-Technology Stack
-
-Security & Privacy
-
-Responsible AI
-
-Prototype Scope & Limitations
-
-Synthetic Data & Demo Mode
-
-Installation & Setup
-
-Testing
-
-End-to-End Technical Flow
-
-Implementation Status
-
-Production Roadmap
-
-Future Scalability
-
-SDG Alignment
-
-SIH Context
-
-Design Principles
-
-Why Manobal-AI
-
-Project Summary
+---
 
 🌐 Project Overview
 Manobal-AI is an AI-assisted personnel welfare intelligence platform
@@ -1858,3 +1851,27 @@ production security/governance before operational deployment.
 
 ❤️ Closing Principle
 AI should assist. Humans should decide.
+
+---
+
+## 🔗 Related Documentation
+
+| Document | Purpose |
+|---|---|
+| [`README.md`](README.md) | Product overview, features, setup and project introduction |
+| [`architecture.md`](architecture.md) | Complete system-level architecture |
+| [`backend-architecture.md`](backend-architecture.md) | Detailed FastAPI, ML, persistence and backend design |
+
+---
+
+<div align="center">
+
+### 🧠 Manobal-AI
+
+**Turning welfare data into contextual signals — while keeping humans in control.**
+
+**AI should assist. Humans should decide.**
+
+❤️ Built for Smart India Hackathon 2026
+
+</div>
