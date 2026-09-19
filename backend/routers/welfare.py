@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 from uuid import uuid4
@@ -5,21 +6,33 @@ from uuid import uuid4
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from lib.audit_service import log_denial
+from lib.audit_service import audit_log, log_denial
 from lib.db import db
+from lib.explanation import build_welfare_explanation
 from lib.feature_engineering import (
     RAW_NUMERIC_FEATURES,
     STATIC_FEATURES,
     records_to_frame,
 )
+from lib.history import build_four_week_window, get_personnel_history
 from lib.inference import InferenceEngine, ModelArtifactError, utc_now
 from lib.rbac_deps import require_any_role, require_personnel, require_welfare_officer
+from lib.trajectory import build_personnel_trajectory
+from lib.welfare_prediction import WelfarePredictionUnavailable, predict_personnel_welfare
 from models.welfare import (
+    TrustComponents,
+    DataSufficiency,
     DataTrust,
     DecisionSupport,
     EarlyWarning,
+    EvidenceQuality,
     Intervention,
+    InterventionAction,
+    InterventionActionCreate,
+    InterventionActionUpdate,
     InterventionCreate,
+    InterventionStatus,
+    InterventionType,
     DemoPersonnel,
     DemoSeedResponse,
     ModelInfo,
@@ -28,12 +41,23 @@ from models.welfare import (
     Personnel,
     PersonnelAssessment,
     PersonnelCreate,
+    PersonnelHistory,
     PersonnelPredictionResponse,
+    PersonnelRawWindow,
     PersonnelRecord,
     PredictRequest,
     PredictionResponse,
+    PredictionSnapshot,
+    PredictionUnavailable,
     RecordResponse,
     TrajectoryPoint,
+    UnitOverview,
+    UnitOverviewResponse,
+    WelfareDecisionSupportResponse,
+    WelfarePredictionResponse,
+    WelfareTrajectoryResponse,
+    ExplanationUnavailable,
+    WelfareExplanationResponse,
 )
 
 
@@ -55,6 +79,20 @@ def _ensure_engine_ready() -> None:
         raise HTTPException(
             status_code=503,
             detail=f"AI model artifacts are unavailable: {engine.load_error or 'risk model or preprocessing pipeline is not loaded'}",
+        )
+
+
+def _ensure_welfare_engine_ready() -> None:
+    """Sanitized readiness gate for the welfare-prediction endpoint.
+
+    Unlike ``_ensure_engine_ready`` (which echoes the artifact load error), this
+    helper never exposes model filenames, artifact paths or internal details to
+    the API surface.
+    """
+    if engine.load_error or engine.risk_model is None or engine.preprocessing_pipeline is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
         )
 
 
@@ -193,6 +231,204 @@ def _decision_support(band: str, trust: DataTrust, direction: str) -> DecisionSu
     )
 
 
+# --- Task 4F: Evidence Quality & Decision-Support Fusion ---
+
+
+EVIDENCE_QUALITY_THRESHOLD = 55.0
+MINIMUM_TEMPORAL_WEEKS = 2
+_WINDOW_WEEK_COUNT = 4
+
+
+def _invalid_observations(features: dict[str, float]) -> bool:
+    """Detect obviously invalid observations in the raw numeric family.
+
+    An observation is invalid when its ``__was_missing`` flag is 0 (observed)
+    and the value is NaN or outside a documented non-negative range.  This is
+    a lightweight sanity gate; it does NOT modify the prediction.
+    """
+    non_negative_features = {
+        "weekly_duty_hours",
+        "overtime_hours",
+        "days_since_last_rest",
+        "days_since_last_leave",
+        "leave_balance",
+        "sleep_hours_biometric",
+        "wellness_score_self_report",
+        "sleep_quality_score_self_report",
+    }
+    for name in non_negative_features:
+        flag = f"{name}__was_missing"
+        if flag in features and int(features[flag]) == 0:
+            value = features[name]
+            if isinstance(value, float) and (value != value):
+                return True
+            if isinstance(value, (int, float)) and value < 0:
+                return True
+    return False
+
+
+def compute_evidence_quality(
+    data_sufficiency: dict[str, Any],
+    features: dict[str, float] | None,
+    model_prediction_available: bool,
+) -> EvidenceQuality:
+    """Deterministic evidence-quality assessment using information already
+    available from the production pipeline.
+
+    REUSES the existing Data Trust heuristic (:func:`_data_trust`) for the
+    feature-level components (completeness, recency, source reliability,
+    consistency); it never recomputes or replaces that engine.  To that,
+    Task 4F adds two genuinely new evidence dimensions the existing engine
+    does not cover:
+
+      - temporal_coverage: 30%  (observed weeks / 4-week window size)
+      - observation_validity: 20%  (detected invalid/negative values)
+
+    remaining 50% comes from the EXISTING Data Trust score.  There are no
+    hidden constants: weights, window size and labels are documented below.
+
+    Thresholds and labels:
+      - score >= 70 → Sufficient
+      - score >= 45 → Limited
+      - score <  45 → Insufficient
+
+    The officer-facing label is then CAPPED so it can never overstate quality:
+    when the layer's own documented abstention gates fail (prediction
+    unavailable, Data Trust below the abstention floor, or zero observed
+    weeks) the label is forced to ``Insufficient``; when only downgrade-able
+    limitations exist (fewer than MINIMUM_TEMPORAL_WEEKS observed weeks, or
+    invalid observations) it is at most ``Limited``.  A composite score alone
+    must never read "Sufficient" while the decision layer abstains on that
+    same evidence.
+
+    When no engineered features exist (model prediction unavailable) the Data
+    Trust component defaults to 0 — absence of evidence is never scored as
+    high trust.  Every component is deterministic, explainable, isolated from
+    the trained model, and does NOT modify the model prediction.
+    """
+    weeks_with_data = len(data_sufficiency.get("weeks_with_data", []))
+    week_count = max(data_sufficiency.get("week_count", 0), _WINDOW_WEEK_COUNT)
+
+    if features is not None:
+        existing_trust = _data_trust(features)
+        trust_score = existing_trust.score
+        trust_components = existing_trust.components
+        has_invalid = _invalid_observations(features)
+    else:
+        # No engineered evidence could be produced; absence of evidence is
+        # never scored as high trust.
+        trust_score = 0.0
+        trust_components = TrustComponents(
+            completeness=0.0, recency=0.0, source_reliability=0.0, consistency=0.0
+        )
+        has_invalid = False
+
+    temporal_coverage = round(100.0 * min(weeks_with_data, week_count) / week_count, 1)
+    validity = 50.0 if has_invalid else 100.0
+
+    score = round(0.50 * trust_score + 0.30 * temporal_coverage + 0.20 * validity, 1)
+    label = (
+        "Sufficient" if score >= 70
+        else "Limited" if score >= 45
+        else "Insufficient"
+    )
+    # Cap the label by the same documented gates that drive the decision state,
+    # so the summary can never overstate quality on evidence the layer abstains
+    # from (see module docstring on label semantics).
+    if (
+        not model_prediction_available
+        or trust_score < TRUST_ABSTENTION_THRESHOLD
+        or weeks_with_data < 1
+    ):
+        label = "Insufficient"
+    elif weeks_with_data < MINIMUM_TEMPORAL_WEEKS or has_invalid:
+        if label == "Sufficient":
+            label = "Limited"
+
+    basis = (
+        "Evidence quality is a deterministic blend of the existing Data Trust "
+        f"score ({trust_score:.1f}, 50%), temporal coverage ({temporal_coverage:.1f}% "
+        f"= {weeks_with_data}/{week_count} weeks with data, 30%) and observation "
+        f"validity ({'degraded' if has_invalid else 'ok'}, 20%). It reuses the "
+        "existing Data Trust engine for feature-level completeness/recency/source/"
+        "consistency and is explicitly NOT model confidence."
+    )
+    if not model_prediction_available:
+        basis += (
+            " Model prediction is unavailable; evidence quality reflects stored "
+            "data only (Data Trust defaults to 0 because no engineered feature "
+            "evidence exists)."
+        )
+
+    return EvidenceQuality(
+        score=score,
+        threshold=EVIDENCE_QUALITY_THRESHOLD,
+        label=label,
+        basis=basis,
+        components=trust_components,
+        temporal_coverage_weeks=weeks_with_data,
+        invalid_observations_detected=has_invalid,
+    )
+
+
+def _compute_decision_support_4f(
+    evidence_quality: EvidenceQuality,
+    data_trust_score: float,
+    prediction_available: bool,
+    predicted_band: str | None,
+) -> tuple[str, str]:
+    """Task 4F decision-support state from documented, deterministic rules.
+
+    States:
+      - INSUFFICIENT_EVIDENCE: the system ABSTAINS.  No misleading risk
+        conclusion is presented.  Triggered when the model prediction is
+        unavailable, when the existing Data Trust score is below the
+        actionability threshold (60), or when temporal coverage is zero.
+      - LIMITED_EVIDENCE: model output is present and trusted, but the
+        evidence basis is thin (fewer than two observed weeks, or detected
+        invalid observations).  The output is presented with an explicit
+        evidence-availability caveat.
+      - SUPPORTED: sufficient trusted evidence (at least two observed weeks,
+        no data-quality defects) supports presenting the model output.
+
+    Rules are applied in a fixed order and never modify the model prediction.
+    """
+    if not prediction_available:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            "Model prediction is unavailable for this personnel; the system "
+            "abstains and presents no risk conclusion. Verify stored data "
+            "before drawing any welfare conclusion.",
+        )
+    if data_trust_score < TRUST_ABSTENTION_THRESHOLD:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            f"Data Trust {data_trust_score:.1f} is below the {TRUST_ABSTENTION_THRESHOLD:.0f} "
+            "actionability threshold; evidence is not sufficiently reliable for "
+            "AI-assisted decision support. The system abstains rather than "
+            "presenting a misleading risk conclusion.",
+        )
+    if evidence_quality.temporal_coverage_weeks < MINIMUM_TEMPORAL_WEEKS:
+        return (
+            "LIMITED_EVIDENCE",
+            f"Only {evidence_quality.temporal_coverage_weeks} week(s) of temporal data "
+            f"are available (minimum {MINIMUM_TEMPORAL_WEEKS} for full evidence); "
+            "model output is presented with an explicit evidence-availability caveat.",
+        )
+    if evidence_quality.invalid_observations_detected:
+        return (
+            "LIMITED_EVIDENCE",
+            "Invalid observations were detected in the stored data; model output "
+            "is presented with an explicit data-quality caveat.",
+        )
+    return (
+        "SUPPORTED",
+        f"Evidence quality is sufficient (Data Trust {data_trust_score:.1f} "
+        f"and {evidence_quality.temporal_coverage_weeks} weeks of temporal data support "
+        "AI-assisted decision support). Model output is presented to the welfare officer.",
+    )
+
+
 @router.get("/model-info", response_model=ModelInfo)
 async def model_info() -> ModelInfo:
     """PUBLIC — Model metadata and status."""
@@ -211,13 +447,89 @@ async def overview(current_user: dict = Depends(require_any_role("WELFARE_OFFICE
     today = datetime.now(timezone.utc).date().isoformat()
     personnel_count = await db.personnel.count_documents({})
     assessments_today = await db.risk_assessments.count_documents({"date_key": today})
-    open_interventions = await db.interventions.count_documents({"status": {"$in": ["NEW", "UNDER REVIEW", "SUPPORT INITIATED", "FOLLOW-UP", "Open", "In progress"]}})
+    open_interventions = await db.interventions.count_documents({"status": {"$in": ["NEW", "UNDER REVIEW", "SUPPORT INITIATED", "FOLLOW-UP", "Open", "In progress", "OPEN", "FOLLOW_UP"]}})
     high_risk_latest = await db.risk_assessments.count_documents({"predicted_band": "High", "is_latest": True})
     return Overview(
         personnel_count=personnel_count,
         assessments_today=assessments_today,
         open_interventions=open_interventions,
         high_risk_latest=high_risk_latest,
+    )
+
+
+def _minimum_group_size() -> int:
+    """Aggregate-cell suppression threshold, tunable via the environment.
+
+    Any unit whose personnel count is below this value has every count cell
+    suppressed in aggregate views (``UnitOverview.suppressed``).  Never falls
+    below 1 so an environment misconfiguration cannot silently disable the
+    suppression concept entirely.
+    """
+    try:
+        return max(1, int(os.environ.get("AGGREGATE_MIN_GROUP_SIZE", "3")))
+    except ValueError:
+        return 3
+
+
+@router.get("/overview/units", response_model=UnitOverviewResponse)
+async def overview_units(
+    current_user: dict = Depends(require_any_role("WELFARE_OFFICER", "COMMANDER")),
+) -> UnitOverviewResponse:
+    """AGGREGATE ONLY — Unit-level overview (counts per unit, never individuals).
+
+    WELFARE_OFFICER and COMMANDER.  The Commander dashboard (Phase 5) reads
+    this aggregate view: personnel and high-risk counts grouped by unit with
+    minimum-group-size suppression applied to every cell.  A unit whose
+    personnel count is below ``AGGREGATE_MIN_GROUP_SIZE`` (default 3) returns
+    suppressed (None) counts so a small unit can never be used to re-identify
+    an individual.  Global totals remain cohort-level and are reported
+    un-suppressed, matching the existing ``/overview`` semantics.
+
+    Every individual personnel / risk / wellness / workload / leave /
+    deployment / intervention endpoint stays WELFARE_OFFICER-only; this route
+    and ``/overview`` are the only welfare-data surfaces available to COMMANDER.
+    """
+    threshold = _minimum_group_size()
+    personnel_docs = await db.personnel.find().to_list(None)
+    latest_assessments = await db.risk_assessments.find({"is_latest": True}).to_list(None)
+    latest_by_personnel = {doc.get("personnel_id"): doc for doc in latest_assessments}
+
+    buckets: dict[str, dict[str, int]] = {}
+    for doc in personnel_docs:
+        unit = str(doc.get("unit") or "").strip() or "Unassigned unit"
+        bucket = buckets.setdefault(unit, {"personnel": 0, "high_risk": 0})
+        bucket["personnel"] += 1
+        latest = latest_by_personnel.get(doc.get("id"))
+        if latest is not None and latest.get("predicted_band") == "High":
+            bucket["high_risk"] += 1
+
+    units: list[UnitOverview] = []
+    suppressed_units = 0
+    for unit, bucket in sorted(
+        buckets.items(), key=lambda item: (-item[1]["personnel"], item[0].lower())
+    ):
+        if bucket["personnel"] < threshold:
+            suppressed_units += 1
+            units.append(
+                UnitOverview(unit=unit, personnel_count=None, high_risk_latest=None, suppressed=True)
+            )
+        else:
+            units.append(
+                UnitOverview(
+                    unit=unit,
+                    personnel_count=bucket["personnel"],
+                    high_risk_latest=bucket["high_risk"],
+                    suppressed=False,
+                )
+            )
+
+    return UnitOverviewResponse(
+        units=units,
+        total_personnel_count=sum(bucket["personnel"] for bucket in buckets.values()),
+        high_risk_latest_total=sum(bucket["high_risk"] for bucket in buckets.values()),
+        min_group_size=threshold,
+        suppressed_units=suppressed_units,
+        generated_at=utc_now(),
     )
 
 
@@ -230,6 +542,29 @@ async def list_personnel(current_user: dict = Depends(require_welfare_officer)) 
     """
     docs = await db.personnel.find().sort("created_at", -1).to_list(100)
     return [Personnel(**doc) for doc in docs]
+
+
+@router.get("/personnel/{personnel_id}/history", response_model=PersonnelHistory)
+async def personnel_history(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> PersonnelHistory:
+    """WELFARE_OFFICER — Longitudinal welfare/workload history for ONE authorized
+    personnel record.
+
+    Task 4A retrieval layer: static personnel info, wellness logs, workload
+    records, deployment history, leave requests and existing risk assessments
+    are collected into a deterministic chronological envelope by
+    ``lib.history.get_personnel_history``.
+
+    Access: WELFARE_OFFICER only. PERSONNEL is blocked (never another person's
+    records; their own self-service view already exists at /my/records and
+    /my/assessments) and COMMANDER is blocked (aggregate /overview only), both
+    by the role gate.  Stored assessments are minimized (no feature vector,
+    date_key, is_latest or confidence_basis) and payloads are scrubbed of
+    credential-like keys before any data is returned.
+    """
+    return await get_personnel_history(personnel_id, current_user)
 
 
 @router.post("/personnel", response_model=Personnel)
@@ -428,6 +763,184 @@ async def create_intervention(payload: InterventionCreate, current_user: dict = 
     doc.update({"id": str(uuid4()), "created_at": utc_now()})
     await db.interventions.insert_one(doc)
     return Intervention(**doc)
+
+
+# ---------------------------------------------------------------------------
+# Task 4G — Welfare Intervention & Action Tracking
+#
+# All 4G endpoints reuse the single shared ``db.interventions`` collection and
+# the authenticated ``current_user`` identity.  ``personnel_id`` is taken from
+# the URL path only (never the request body) and ``welfare_officer_id`` is
+# derived from the JWT (never trusted from the client).  COMMANDER and
+# PERSONNEL are blocked entirely: individual intervention records are
+# WELFARE_OFFICER-scoped decision-support material.
+# ---------------------------------------------------------------------------
+
+
+def _normalize_intervention_status(value: Any) -> str:
+    """Map legacy free-text intervention statuses onto the Task 4G status set.
+
+    Legacy non-terminal statuses ("NEW", "UNDER REVIEW", "SUPPORT INITIATED",
+    "Open", "In progress") remain OPEN; any variant of FOLLOW-UP maps to
+    FOLLOW_UP; terminal states (RESOLVED/Closed) map to CLOSED.  Unknown values
+    are treated as OPEN so a malformed stored document never crashes the read
+    path.
+    """
+    if value in InterventionStatus.__args__:
+        return value
+    normalized = str(value or "").strip().lower().replace("_", " ").replace("-", " ")
+    if normalized in ("resolved", "closed", "done"):
+        return "CLOSED"
+    if "follow" in normalized:
+        return "FOLLOW_UP"
+    return "OPEN"
+
+
+def _to_intervention_action(doc: dict) -> InterventionAction:
+    """Build a Task 4G response envelope, normalizing legacy stored documents.
+
+    4G documents carry ``intervention_id`` and the canonical enum values;
+    legacy Phase 3 documents carry only ``id`` and free-text values, which are
+    mapped defensively so both generations coexist in one collection.
+    """
+    action_type = doc.get("intervention_type")
+    if action_type not in InterventionType.__args__:
+        action_type = "OTHER"
+    return InterventionAction(
+        intervention_id=doc.get("intervention_id") or doc["id"],
+        personnel_id=doc["personnel_id"],
+        welfare_officer_id=doc.get("welfare_officer_id"),
+        created_at=doc["created_at"],
+        intervention_type=action_type,
+        reason=doc.get("reason"),
+        notes=doc.get("notes", ""),
+        status=_normalize_intervention_status(doc.get("status")),
+        follow_up_at=doc.get("follow_up_at"),
+        outcome=doc.get("outcome"),
+        outcome_notes=doc.get("outcome_notes"),
+        updated_at=doc.get("updated_at"),
+    )
+
+
+@router.post("/personnel/{personnel_id}/interventions", response_model=InterventionAction)
+async def create_personnel_intervention(
+    personnel_id: str,
+    payload: InterventionActionCreate,
+    request: Request,
+    current_user: dict = Depends(require_welfare_officer),
+) -> InterventionAction:
+    """WELFARE_OFFICER — Record a welfare intervention/action for one personnel.
+
+    Task 4G: the acting ``welfare_officer_id`` is derived from the
+    authenticated token, never from the client body.  An unknown personnel id is
+    a 404 (the officer is told immediately rather than writing an orphaned
+    intervention for a record that does not exist).
+    """
+    target = await db.personnel.find_one({"id": personnel_id})
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personnel record not found")
+
+    now = utc_now()
+    intervention_id = str(uuid4())
+    doc = {
+        "id": intervention_id,
+        "intervention_id": intervention_id,
+        "personnel_id": personnel_id,
+        "welfare_officer_id": current_user["user_id"],
+        "intervention_type": payload.intervention_type,
+        "reason": payload.reason,
+        "notes": payload.notes,
+        "status": payload.status,
+        "follow_up_at": payload.follow_up_at,
+        "outcome": payload.outcome,
+        "outcome_notes": payload.outcome_notes,
+        "created_at": now,
+        "updated_at": None,
+    }
+    await db.interventions.insert_one(doc)
+    await audit_log(
+        "intervention_created",
+        user_id=current_user.get("user_id"),
+        username=current_user.get("username"),
+        role=current_user.get("role"),
+        endpoint=request.url.path,
+        http_method=request.method,
+        success=True,
+        details={
+            "intervention_id": intervention_id,
+            "personnel_id": personnel_id,
+            "intervention_type": payload.intervention_type,
+            "status": payload.status,
+        },
+    )
+    return _to_intervention_action(doc)
+
+
+@router.get("/personnel/{personnel_id}/interventions", response_model=list[InterventionAction])
+async def list_personnel_interventions(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> list[InterventionAction]:
+    """WELFARE_OFFICER — List every intervention recorded for ONE personnel.
+
+    Newest first.  An unknown personnel id is a 404 rather than an empty list,
+    so a mistyped id cannot be silently mistaken for "no interventions".
+    """
+    target = await db.personnel.find_one({"id": personnel_id})
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personnel record not found")
+    docs = await db.interventions.find({"personnel_id": personnel_id}).sort("created_at", -1).to_list(100)
+    return [_to_intervention_action(doc) for doc in docs]
+
+
+@router.patch("/interventions/{intervention_id}", response_model=InterventionAction)
+async def update_intervention(
+    intervention_id: str,
+    payload: InterventionActionUpdate,
+    request: Request,
+    current_user: dict = Depends(require_welfare_officer),
+) -> InterventionAction:
+    """WELFARE_OFFICER — Update mutable lifecycle fields on an intervention.
+
+    Closing (status -> CLOSED) is audited as ``intervention_closed``; any other
+    state change is ``intervention_updated``.  Identity fields (owner officer,
+    personnel) are never client-editable; an empty or unknown body is rejected.
+    """
+    doc = await db.interventions.find_one({"intervention_id": intervention_id})
+    if doc is None:
+        doc = await db.interventions.find_one({"id": intervention_id})
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention record not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No update fields supplied")
+
+    previous_status = _normalize_intervention_status(doc.get("status"))
+    changes: dict[str, Any] = dict(updates)
+    changes["updated_at"] = utc_now()
+    await db.interventions.update_many({"id": doc["id"]}, {"$set": changes})
+    doc.update(changes)
+
+    new_status = updates.get("status", previous_status)
+    event_type = "intervention_updated"
+    if updates.get("status") == "CLOSED" and previous_status != "CLOSED":
+        event_type = "intervention_closed"
+    await audit_log(
+        event_type,
+        user_id=current_user.get("user_id"),
+        username=current_user.get("username"),
+        role=current_user.get("role"),
+        endpoint=request.url.path,
+        http_method=request.method,
+        success=True,
+        details={
+            "intervention_id": doc.get("intervention_id") or doc["id"],
+            "personnel_id": doc["personnel_id"],
+            "status": new_status,
+        },
+    )
+    return _to_intervention_action(doc)
 
 
 def _demo_raw_records(engineered: dict[str, float], personnel_id: str) -> list[dict[str, Any]]:
@@ -722,3 +1235,405 @@ async def my_assessments(current_user: dict = Depends(require_personnel)) -> lis
     user_id = current_user["user_id"]
     docs = await db.risk_assessments.find({"personnel_id": user_id}).sort("assessed_at", 1).to_list(100)
     return [PersonnelAssessment(assessment_id=doc["id"], assessed_at=doc["assessed_at"]) for doc in docs]
+
+
+@router.get("/personnel/{personnel_id}/raw-window", response_model=PersonnelRawWindow)
+async def personnel_raw_window(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> PersonnelRawWindow:
+    """WELFARE_OFFICER — Exact 4-week raw-record intelligence window for ONE
+    personnel record.
+
+    Task 4B: converts the Task 4A history into the precise raw-record
+    structure expected by ``lib.feature_engineering.records_to_frame`` and
+    ``lib.inference.predict_from_raw_records``.  The window always ends at the
+    latest timestamped observation and never uses future or out-of-window
+    observations; missingness is preserved (never fabricated).
+
+    Access: WELFARE_OFFICER only (defense in depth — the service re-checks the
+    role).  PERSONNEL is blocked (never another person's window) and COMMANDER
+    is blocked (aggregate /overview only), both by the role gate.  Responses
+    carry only raw weekly features plus a scrubbed personnel envelope — never
+    credentials, the 44-feature vector, model internals or risk band material.
+    """
+    return PersonnelRawWindow(**await build_four_week_window(personnel_id, current_user))
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-prediction",
+    response_model=Union[PredictionUnavailable, WelfarePredictionResponse],
+)
+async def personnel_welfare_prediction(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> Union[PredictionUnavailable, WelfarePredictionResponse]:
+    """WELFARE_OFFICER — Model-backed welfare prediction for ONE personnel.
+
+    Task 4C production integration: MongoDB -> ``build_four_week_window`` ->
+    canonical 44-feature engineering -> calibrated LightGBM -> prediction.
+
+    The 4-week raw window is built from the person's STORED welfare records
+    (it always ends at the latest timestamped observation — never a guessed
+    "today" and never a future record), the 44 features are derived
+    server-side by the existing feature-engineering pipeline, and the existing
+    calibrated model produces the risk signal.
+
+    Access: WELFARE_OFFICER only.  PERSONNEL can never view anyone's welfare
+    prediction here (including their own) and COMMANDER remains aggregate-only
+    — both are blocked by the role gate.  The 44-feature vector, model
+    filenames, artifact paths and credentials are never returned.
+
+    Incomplete or missing stored data returns a structured
+    ``PredictionUnavailable`` envelope instead of a fabricated prediction;
+    model/artifact failures surface as a sanitized 503.
+    """
+    _ensure_welfare_engine_ready()
+    try:
+        window, result, features = await predict_personnel_welfare(
+            personnel_id, current_user, engine
+        )
+    except WelfarePredictionUnavailable as exc:
+        return PredictionUnavailable(
+            status="insufficient_data",
+            personnel_id=personnel_id,
+            reason=exc.reason,
+            message=exc.message,
+        )
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+
+    trust = _data_trust(features)
+    decision = _decision_support(result["predicted_band"], trust, "insufficient_history")
+    return WelfarePredictionResponse(
+        personnel_id=personnel_id,
+        predicted_band=result["predicted_band"],
+        risk_probability=result["risk_probability"],
+        class_probabilities=result["class_probabilities"],
+        prediction_confidence=result["prediction_confidence"],
+        confidence_basis=result["confidence_basis"],
+        top_contributing_factors=result["top_contributing_factors"],
+        data_trust=trust,
+        decision_support=decision,
+        welfare_recommendations=_recommendations(result["predicted_band"]),
+        data_sufficiency=DataSufficiency(
+            week_count=window["week_count"],
+            weeks_with_data=window["weeks_with_data"],
+            latest_observation_date=window["latest_observation_date"],
+            basis=(
+                "The 4-week raw window ends at the latest stored observation "
+                "(causal, never a future date); weeks without data stay missing "
+                "and are handled by the canonical causal imputation path."
+            ),
+        ),
+        model_version=result["model_version"],
+        feature_version=result["feature_version"],
+        assessed_at=utc_now(),
+        derived_outputs=[
+            "The 44-feature vector is derived server-side from the stored 4-week raw window by the canonical feature-engineering pipeline and is never returned.",
+            "Data Trust is a deterministic data-quality heuristic, not model confidence; the response can abstain (VERIFY_DATA) when stored data is incomplete.",
+            "Welfare recommendations are auditable platform rules, not additional model predictions.",
+        ],
+    )
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-trajectory",
+    response_model=Union[PredictionUnavailable, WelfareTrajectoryResponse],
+)
+async def personnel_welfare_trajectory(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> Union[PredictionUnavailable, WelfareTrajectoryResponse]:
+    """WELFARE_OFFICER — Risk trajectory and early warning for ONE personnel.
+
+    Task 4D: combines the Task 4C welfare prediction with the STORED assessment
+    confirmation history into a chronological risk trajectory and temporal
+    early-warning signal.
+
+    Trajectory rules:
+    - ``trend`` is ``increasing`` / ``decreasing`` / ``stable`` /
+      ``insufficient_data``, computed from the two newest chronologically
+      ordered points on the model's High-class probability (`exactly how` in
+      ``lib.trajectory``).
+    - ``early_warning`` is strictly TEMPORAL: it requires at least two
+      chronologically ordered assessments and can never fire from a single
+      assessment or missing history (no false alarms from missing data).
+      ``human_review`` = sustained (two consecutive) High band; ``watch`` =
+      rising risk.
+    - Stored assessments dated after the current run are excluded by a causal
+      cut-off, so future-dated records can never flip the trend.
+    - The same run provides the live prediction via ``predict_personnel_welfare``
+      (which re-checks the WELFARE_OFFICER role, defense in depth).
+
+    Access: WELFARE_OFFICER only — PERSONNEL (including for themselves) and
+    COMMANDER (aggregate-only) are blocked by the role gate.  Stored history
+    snapshots carry band + probability only; the 44-feature vector, model
+    filenames, artifact paths and credentials are never returned.  No stored
+    data yields a structured ``PredictionUnavailable`` envelope.
+    """
+    _ensure_welfare_engine_ready()
+    try:
+        payload = await build_personnel_trajectory(personnel_id, current_user, engine)
+    except WelfarePredictionUnavailable as exc:
+        return PredictionUnavailable(
+            status="insufficient_data",
+            personnel_id=personnel_id,
+            reason=exc.reason,
+            message=exc.message,
+        )
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+    return WelfareTrajectoryResponse(**payload)
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-explanation",
+    response_model=Union[ExplanationUnavailable, WelfareExplanationResponse],
+)
+async def personnel_welfare_explanation(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> Union[ExplanationUnavailable, WelfareExplanationResponse]:
+    """WELFARE_OFFICER — Explainable welfare signal for ONE personnel.
+
+    Task 4E: decision-support explanation REUSING the existing Task 4C
+    prediction service (stored 4-week raw window -> canonical 44-feature
+    engineering -> the existing calibrated LightGBM artifact) and the existing
+    temporal evidence.  Nothing is retrained, re-derived or replaced.
+
+    The officer receives:
+    - a compact prediction reference (band + risk probability),
+    - the deployed model's NATIVE additive top contributing factors with
+      officer-readable display labels and direction/impact summary,
+    - a temporal "What Changed?" summary over the available causal evidence
+      (newest prior stored snapshot dated at/before the run, else the prior
+      observed week of the raw window), where missing data is never reported as
+      improvement or deterioration,
+    - an explicit explanation availability/status and evidence basis.
+
+    Access: WELFARE_OFFICER only — PERSONNEL (including for themselves) and
+    COMMANDER (aggregate-only) are blocked by the role gate, matching 4C/4D.
+    The 44-feature vector, model filenames, artifact paths, credentials and
+    unnecessary raw personnel records are never returned.  No usable stored data
+    yields a structured ``ExplanationUnavailable`` envelope; model/artifact
+    failures surface as a sanitized 503.
+    """
+    _ensure_welfare_engine_ready()
+    try:
+        payload = await build_welfare_explanation(personnel_id, current_user, engine)
+    except WelfarePredictionUnavailable as exc:
+        return ExplanationUnavailable(
+            status="insufficient_data",
+            personnel_id=personnel_id,
+            reason=exc.reason,
+            message=exc.message,
+        )
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+    return WelfareExplanationResponse(**payload)
+
+
+@router.get(
+    "/personnel/{personnel_id}/welfare-decision-support",
+    response_model=WelfareDecisionSupportResponse,
+)
+async def personnel_welfare_decision_support(
+    personnel_id: str,
+    current_user: dict = Depends(require_welfare_officer),
+) -> WelfareDecisionSupportResponse:
+    """WELFARE_OFFICER — Risk + Trust Fusion & Safe Abstention for ONE personnel.
+
+    Task 4F: synthesizes the existing Phase 4C prediction, 4D trajectory, and
+    4E explanation into a single comprehensive decision-support envelope with
+    explicit evidence-quality assessment and safe abstention.
+
+    The model output is NEVER silently modified by the trust layer.  When
+    evidence quality is insufficient, the system abstains and provides sanitized
+    evidence-quality information rather than a misleading risk conclusion.
+
+    Flow:
+      1. Attempt the existing 4C prediction (stored 4-week window -> canonical
+         44-feature engineering -> calibrated LightGBM).
+      2. If prediction succeeds: compute trajectory, explanation and evidence
+         quality from the full pipeline outputs.
+      3. If prediction fails: compute evidence quality from stored data alone
+         (model output fields are absent but the abstention/evidence assessment
+         is still provided).
+      4. Fusion: documented decision rules → SUPPORTED / LIMITED_EVIDENCE /
+         INSUFFICIENT_EVIDENCE.
+
+    Access: WELFARE_OFFICER only.  The 44-feature vector, model filenames,
+    artifact paths, credentials and unnecessary raw personnel records are
+    never returned.  Insufficient or unavailable data yields a safe structured
+    abstention envelope; model/artifact failures surface as a sanitized 503.
+    """
+    _ensure_welfare_engine_ready()
+
+    run_at = utc_now()
+
+    # --- Phase 4C: Prediction (reuses existing service, no duplication) ---
+    prediction_available = True
+    window: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    features: dict[str, float] | None = None
+
+    try:
+        window, result, features = await predict_personnel_welfare(
+            personnel_id, current_user, engine
+        )
+    except WelfarePredictionUnavailable:
+        prediction_available = False
+    except ModelArtifactError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Model-backed welfare prediction is temporarily unavailable",
+        ) from exc
+
+    # --- Phase 4D: Trajectory (reuses existing service, no duplication) ---
+    trajectory_available = False
+    trend: str | None = None
+    early_warning: dict[str, Any] | None = None
+
+    if prediction_available and result is not None:
+        try:
+            trajectory_payload = await build_personnel_trajectory(
+                personnel_id, current_user, engine
+            )
+            trajectory_available = True
+            trend = trajectory_payload["trend"]
+            early_warning = trajectory_payload["early_warning"]
+        except (WelfarePredictionUnavailable, ModelArtifactError):
+            pass  # trajectory is optional enrichment; absence is documented
+
+    # --- Phase 4E: Explanation (reuses existing service, no duplication) ---
+    temporal_analysis_available = False
+    what_changed: dict[str, Any] | None = None
+
+    if prediction_available and result is not None and features is not None and window is not None:
+        try:
+            explanation_payload = await build_welfare_explanation(
+                personnel_id, current_user, engine
+            )
+            temporal_analysis_available = True
+            what_changed = explanation_payload["what_changed"]
+        except (WelfarePredictionUnavailable, ModelArtifactError):
+            pass  # temporal analysis is optional enrichment; absence is documented
+
+    # --- Data sufficiency (from the 4C window or fallback) ---
+    if window is not None:
+        data_sufficiency_obj = DataSufficiency(
+            week_count=window["week_count"],
+            weeks_with_data=window["weeks_with_data"],
+            latest_observation_date=window["latest_observation_date"],
+            basis=(
+                "The 4-week raw window ends at the latest stored observation "
+                "(causal, never a future date); weeks without data stay missing "
+                "and are handled by the canonical causal imputation path."
+            ),
+        )
+    else:
+        data_sufficiency_obj = DataSufficiency(
+            week_count=0,
+            weeks_with_data=[],
+            latest_observation_date=run_at,
+            basis="No usable welfare data was available for this personnel; "
+                  "evidence quality reflects the absence of stored observations.",
+        )
+
+    # --- Task 4F: Evidence Quality (reuses existing Data Trust, adds the
+    # temporal-coverage and observation-validity dimensions) ---
+    # Trust calculation is defensive: a failure must degrade to safe
+    # abstention, never to a fabricated trust score or a misleading risk
+    # conclusion.  No traceback or internal detail is exposed.
+    evidence_quality_valid = True
+    try:
+        evidence_quality = compute_evidence_quality(
+            {
+                "week_count": data_sufficiency_obj.week_count,
+                "weeks_with_data": data_sufficiency_obj.weeks_with_data,
+            },
+            features,
+            model_prediction_available=prediction_available,
+        )
+        data_trust_score = _data_trust(features).score if features is not None else 0.0
+    except Exception:
+        evidence_quality_valid = False
+        evidence_quality = EvidenceQuality(
+            score=0.0,
+            threshold=EVIDENCE_QUALITY_THRESHOLD,
+            label="Insufficient",
+            basis="Evidence quality could not be reliably computed for this personnel; the system abstains.",
+            components=TrustComponents(
+                completeness=0.0, recency=0.0, source_reliability=0.0, consistency=0.0
+            ),
+            temporal_coverage_weeks=data_sufficiency_obj.week_count,
+            invalid_observations_detected=False,
+        )
+        data_trust_score = 0.0
+
+    # --- Task 4F: Decision Support Fusion (deterministic documented rules) ---
+    predicted_band = result["predicted_band"] if result else None
+    if evidence_quality_valid:
+        decision_state, decision_basis = _compute_decision_support_4f(
+            evidence_quality, data_trust_score, prediction_available, predicted_band
+        )
+    else:
+        decision_state, decision_basis = (
+            "INSUFFICIENT_EVIDENCE",
+            "Evidence quality could not be reliably computed; the system "
+            "abstains rather than presenting a risk conclusion.",
+        )
+
+    # --- Welfare recommendations (from existing helper when prediction available) ---
+    welfare_recommendations = _recommendations(predicted_band) if predicted_band else [
+        "No model-backed prediction is available for this personnel.",
+        "Verify stored welfare data and ensure observations are current before drawing conclusions.",
+        "Do not treat absence of evidence as evidence of improvement or deterioration.",
+    ]
+
+    # --- Derived outputs ---
+    derived = [
+        "Evidence quality reuses the existing Data Trust engine and adds temporal coverage and observation validity; it is NOT model confidence.",
+        "The model prediction is NEVER modified by the evidence quality assessment; insufficient evidence results in safe abstention, not altered risk signals.",
+        "Absence of data is never treated as evidence of improvement or deterioration.",
+        "Trajectory and temporal analysis are optional enrichments from the existing Phase 4D and 4E services.",
+    ]
+    if not prediction_available:
+        derived.append("The model prediction is unavailable; evidence quality reflects stored data only.")
+    if trend is not None:
+        derived.append("The risk trajectory and early warning are auditable platform rules over the calibrated model's outputs — not additional model predictions.")
+    if what_changed is not None:
+        derived.append("What Changed compares only factors observed in both periods; missing data is never reported as improvement or deterioration.")
+
+    return WelfareDecisionSupportResponse(
+        personnel_id=personnel_id,
+        decision_state=decision_state,
+        decision_basis=decision_basis,
+        prediction_available=prediction_available,
+        predicted_band=result["predicted_band"] if result else None,
+        risk_probability=float(result["risk_probability"]) if result else None,
+        class_probabilities=result.get("class_probabilities") if result else None,
+        prediction_confidence=float(result["prediction_confidence"]) if result else None,
+        confidence_basis=result.get("confidence_basis") if result else None,
+        top_contributing_factors=result.get("top_contributing_factors") if result else None,
+        evidence_quality=evidence_quality,
+        data_sufficiency=data_sufficiency_obj,
+        trajectory_available=trajectory_available,
+        trend=trend,
+        early_warning=EarlyWarning(**early_warning) if early_warning else None,
+        temporal_analysis_available=temporal_analysis_available,
+        what_changed=what_changed,
+        welfare_recommendations=welfare_recommendations,
+        derived_outputs=derived,
+        assessed_at=run_at,
+    )

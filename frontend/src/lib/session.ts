@@ -1,7 +1,8 @@
-// Session boundary: auth is an httpOnly cookie the backend owns; the frontend's one
-// duty is wiping the react-query cache so one account's data never renders for the next.
+// Session boundary: manages authentication state and query cache.
+// JWT is stored in localStorage and automatically attached to requests.
 import { queryClient } from "./queryClient";
 import { apiPost } from "./api";
+import { clearToken } from "./auth";
 
 // Call after every successful login/signup.
 export function beginSession(): void {
@@ -12,7 +13,10 @@ export function beginSession(): void {
 export async function endSession(redirectTo: string = "/login"): Promise<void> {
   try {
     await apiPost("/auth/logout");
+  } catch {
+    // Ignore logout errors - proceed with local cleanup
   } finally {
+    clearToken();
     queryClient.clear();
     window.location.assign(redirectTo);
   }

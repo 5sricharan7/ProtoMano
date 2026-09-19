@@ -1,5 +1,7 @@
 // Typed fetch layer over the FastAPI backend. Base is the relative "/api" prefix so the
 // same code works in dev (Vite proxies /api → :8001) and behind a single origin in prod.
+import { getToken } from "./auth";
+
 const BASE = "/api";
 
 // Fields are declared, not constructor parameter properties: tsconfig sets
@@ -19,10 +21,21 @@ export class ApiError extends Error {
 type JsonBody = unknown;
 
 async function request<T>(method: string, path: string, body?: JsonBody): Promise<T> {
-  // Auth rides the httpOnly session cookie automatically — never add auth headers here.
+  // Build headers with JWT token if available
+  const headers: Record<string, string> = {};
+  
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  const token = getToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 

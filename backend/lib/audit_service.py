@@ -19,6 +19,9 @@ AuditEventType = Literal[
     "rbac_denial",
     "idor_denial",
     "logout",
+    "intervention_created",
+    "intervention_updated",
+    "intervention_closed",
 ]
 
 
