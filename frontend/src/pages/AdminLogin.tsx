@@ -1,72 +1,19 @@
 import { useState } from "react";
-import type { ComponentType, FormEvent } from "react";
+import type { FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Command, Fingerprint, HeartHandshake, ShieldCheck, UserRound } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Fingerprint, ShieldCheck } from "lucide-react";
 import { apiPost } from "@/lib/api";
 import { HERO_BACKGROUND_URL } from "@/lib/config";
 import { clearToken, setAuthData } from "@/lib/auth";
 import { beginSession } from "@/lib/session";
 import { queryClient } from "@/lib/queryClient";
-import type { AuthToken, DemoSeedResponse, UserRole } from "@/lib/types";
+import type { AuthToken } from "@/lib/types";
 
-interface WorkspaceMeta {
-  role: UserRole;
-  label: string;
-  kicker: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
-  accent: "mint" | "commander";
-  headline: string;
-  headlineEm: string;
-  story: string;
-}
+const NOT_ADMIN = "This account does not have administrator access.";
 
-const WORKSPACES: Record<string, WorkspaceMeta> = {
-  officer: {
-    role: "WELFARE_OFFICER",
-    label: "Welfare Officer",
-    kicker: "WELFARE OFFICER WORKSPACE",
-    icon: HeartHandshake,
-    accent: "mint",
-    headline: "Every signal",
-    headlineEm: "deserves care.",
-    story: "Authenticate as a Welfare Officer to enter the welfare command workspace and coordinate support for personnel.",
-  },
-  commander: {
-    role: "COMMANDER",
-    label: "Commander",
-    kicker: "COMMANDER WORKSPACE",
-    icon: Command,
-    accent: "commander",
-    headline: "Readiness, with",
-    headlineEm: "respect for privacy.",
-    story: "Authenticate with your Commander credentials to enter the unit-level welfare intelligence workspace.",
-  },
-  personnel: {
-    role: "PERSONNEL",
-    label: "Personnel Teammate",
-    kicker: "PERSONNEL WORKSPACE",
-    icon: UserRound,
-    accent: "mint",
-    headline: "Your welfare,",
-    headlineEm: "your private view.",
-    story: "Authenticate as Personnel to enter your private welfare workspace and review your own signals.",
-  },
-};
-
-const HOME_PATHS: Record<UserRole, string> = {
-  PERSONNEL: "/personnel",
-  WELFARE_OFFICER: "/officer",
-  COMMANDER: "/command",
-  ADMIN: "/admin",
-};
-
-const ROLE_MISMATCH = "Your account does not have access to this workspace.";
-
-export default function RoleLogin() {
-  const params = useParams<{ workspace: string }>();
+export default function AdminLogin() {
   const navigate = useNavigate();
-  const meta = WORKSPACES[params.workspace ?? ""];
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -76,27 +23,23 @@ export default function RoleLogin() {
       const authResponse = await apiPost<AuthToken>("/auth/login", { username, password });
       setAuthData(authResponse);
       beginSession();
-      // Seeding is welfare-officer specific: Commanders and Personnel never seed.
-      if (authResponse.role === "WELFARE_OFFICER") {
-        await apiPost<DemoSeedResponse>("/demo/seed", {});
-      }
       return authResponse;
     },
     onSuccess: (authResponse) => {
-      if (authResponse.role !== meta.role) {
+      if (authResponse.role !== "ADMIN") {
         clearToken();
         queryClient.clear();
-        setError(ROLE_MISMATCH);
+        setError(NOT_ADMIN);
         return;
       }
-      navigate(HOME_PATHS[authResponse.role], { replace: true });
+      navigate("/admin", { replace: true });
     },
     onError: (err: unknown) => {
       const status = (err as { status?: number }).status;
       if (status === 401) {
         setError("Invalid username or password.");
       } else if (status === 403) {
-        setError("This account cannot access the workspace.");
+        setError("This account cannot access the admin workspace.");
       } else if (status === 404 || status === 0) {
         setError("Backend server unavailable. Please ensure the API is running.");
       } else {
@@ -104,10 +47,6 @@ export default function RoleLogin() {
       }
     },
   });
-
-  if (!meta) {
-    return <Navigate to="/login" replace />;
-  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -119,13 +58,10 @@ export default function RoleLogin() {
     loginMutation.mutate();
   }
 
-  const Icon = meta.icon;
-  const isCommander = meta.accent === "commander";
-
   return (
     <div className="reference-login">
       <header className="demo-header">
-        <Link to="/" className="reference-brand" data-testid="login-brand-link">
+        <Link to="/" className="reference-brand" data-testid="admin-brand-link">
           <span className="reference-brand-mark">
             <Fingerprint size={24} />
           </span>
@@ -142,64 +78,67 @@ export default function RoleLogin() {
       </header>
       <div className="demo-layout">
         <section
-          className="demo-story"
+          className="demo-story admin-story"
           style={{
             backgroundImage: `linear-gradient(105deg, rgba(246,243,234,.96) 0%, rgba(255,253,248,.90) 40%, rgba(255,253,248,.62) 72%, rgba(255,253,248,.45) 100%), url(${HERO_BACKGROUND_URL})`,
           }}
         >
           <div>
             <span className="demo-story-kicker">DEMO ENVIRONMENT</span>
-            <h1>{meta.headline}<br /><em>{meta.headlineEm}</em></h1>
+            <h1>Restricted<br /><em>access.</em></h1>
             <i className="demo-story-rule" />
-            <p>{meta.story}</p>
+            <p>
+              The administration workspace governs system accounts and access controls.
+              Only verified Administrators can enter.
+            </p>
           </div>
           <footer>
             <span>
-              <ShieldCheck size={20} /> HUMAN-IN-THE-LOOP • WELFARE-ONLY PURPOSE
+              <ShieldCheck size={20} /> CUSTODIAN ROLE • ACCOUNT GOVERNANCE
             </span>
             <strong>People. Prepared. Protected.</strong>
           </footer>
         </section>
         <main className="demo-command">
           <div className="demo-command-inner">
-            <Link to="/login" className="gate-back" data-testid="workspace-back-link">
+            <Link to="/login" className="gate-back" data-testid="admin-back-link">
               <ArrowLeft size={14} /> Back to workspace selection
             </Link>
-            <span className="demo-command-kicker">{meta.kicker}</span>
-            <h2>Secure workspace<br /><em>access.</em></h2>
+            <span className="demo-command-kicker">ADMINISTRATOR ACCESS</span>
+            <h2>Administrators<br /><em>only.</em></h2>
             <p>
-              Enter your credentials to enter this workspace. Access is verified against
-              your account role by the backend.
+              Enter your credentials. Your role is verified by the backend — the
+              sign-in view never decides your clearance.
             </p>
-            <div className={`workspace-role-chip ${isCommander ? "workspace-role-chip--commander" : ""}`}>
-              <Icon size={13} /> {meta.label}
+            <div className="workspace-role-chip workspace-role-chip--admin">
+              <ShieldCheck size={13} /> Administrator
             </div>
 
-            <form onSubmit={handleSubmit} data-testid="login-form" className="gate-form">
+            <form onSubmit={handleSubmit} data-testid="admin-login-form" className="gate-form">
               <div className="demo-login-fields">
                 <div className="demo-field">
-                  <label htmlFor="username">Username</label>
+                  <label htmlFor="admin-username">Username</label>
                   <input
-                    id="username"
+                    id="admin-username"
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter username"
                     disabled={loginMutation.isPending}
-                    data-testid="login-username-input"
+                    data-testid="admin-username-input"
                     autoComplete="username"
                   />
                 </div>
                 <div className="demo-field">
-                  <label htmlFor="password">Password</label>
+                  <label htmlFor="admin-password">Password</label>
                   <input
-                    id="password"
+                    id="admin-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter password"
                     disabled={loginMutation.isPending}
-                    data-testid="login-password-input"
+                    data-testid="admin-password-input"
                     autoComplete="current-password"
                   />
                 </div>
@@ -209,15 +148,19 @@ export default function RoleLogin() {
                 type="submit"
                 className="demo-continue"
                 disabled={loginMutation.isPending}
-                data-testid="login-submit-button"
+                data-testid="admin-submit-button"
               >
                 <ShieldCheck size={19} />
-                {loginMutation.isPending ? "Authenticating…" : "Sign in securely"}
+                {loginMutation.isPending ? "Authenticating…" : "Authenticate"}
                 <ArrowRight size={19} />
               </button>
 
               {error && (
-                <p className={`login-error ${error === ROLE_MISMATCH ? "login-error--mismatch" : ""}`} role="alert" data-testid="login-error">
+                <p
+                  className={`login-error ${error === NOT_ADMIN ? "login-error--mismatch" : ""}`}
+                  role="alert"
+                  data-testid="admin-login-error"
+                >
                   {error}
                 </p>
               )}
@@ -226,8 +169,8 @@ export default function RoleLogin() {
             <div className="demo-notice">
               <ShieldCheck size={19} />
               <span>
-                Synthetic DEMO DATA is generated for presentation only; predictions still
-                come from the real model and every result is role-checked by the backend.
+                Administrator access is granted only to accounts the backend
+                confirms as ADMIN. No administrator self-registration exists.
               </span>
             </div>
           </div>

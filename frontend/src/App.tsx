@@ -4,6 +4,9 @@ import WorkspaceSelect from "@/pages/WorkspaceSelect";
 import RoleLogin from "@/pages/RoleLogin";
 import OfficerDashboard from "@/pages/OfficerDashboard";
 import PersonnelDashboard from "@/pages/PersonnelDashboard";
+import Signup from "@/pages/Signup";
+import AdminLogin from "@/pages/AdminLogin";
+import AdminPortal from "@/pages/AdminPortal";
 import CommanderWorkspace from "@/pages/CommanderWorkspace";
 import Analysis from "@/pages/Analysis";
 import Interventions from "@/pages/Interventions";
@@ -18,6 +21,9 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<WorkspaceSelect />} />
       <Route path="/login/:workspace" element={<RoleLogin />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin" element={<RequireRole roles={["ADMIN"]}><AdminPortal /></RequireRole>} />
       <Route element={<AppShell />}>
         <Route path="/officer" element={<RequireRole roles={["WELFARE_OFFICER"]}><OfficerDashboard /></RequireRole>} />
         <Route path="/personnel" element={<RequireRole roles={["PERSONNEL", "WELFARE_OFFICER"]}><PersonnelDashboard /></RequireRole>} />

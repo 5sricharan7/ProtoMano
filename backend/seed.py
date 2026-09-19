@@ -1,31 +1,37 @@
-"""Provision the three demo accounts that drive the demo workspace flow.
+"""Provision the demo accounts that drive the demo workspace flow.
 
 Flow: Demo Access -> choose workspace -> REAL login -> backend verifies the
-JWT role -> correct dashboard (Personnel / Welfare Officer / Commander).
+JWT role -> correct dashboard (Personnel / Welfare Officer / Commander / Admin).
 
 We deliberately do NOT invent a second authentication mechanism: the backend
-already models and enforces the COMMANDER role (`models/auth.py` UserRole =
-PERSONNEL | WELFARE_OFFICER | COMMANDER) and `/auth/register` intentionally
-supports only PERSONNEL self-service.  These accounts simply give the demo
-real, password-authenticated identities for each workspace.
+already models and enforces every role (`models/auth.py` UserRole =
+PERSONNEL | WELFARE_OFFICER | COMMANDER | ADMIN) and `/auth/register`
+intentionally supports only PERSONNEL self-service.  These accounts simply give
+the demo real, password-authenticated identities for each workspace.
+
+ADMIN is bootstrap-only: provisioned HERE (seed.py), never via any API.  The
+admin router (`routers/admin.py`) can only provision WELFARE_OFFICER /
+COMMANDER accounts, so no API surface — not even ADMIN — can mint a second
+ADMIN.  Re-running is idempotent: an existing username is never modified.
 
 Accounts (documented demo credentials, printed on every run):
 
     demo_personnel / Demo@Personnel1   -> PERSONNEL
     demo_officer   / Demo@Officer1     -> WELFARE_OFFICER
     demo_commander / Demo@Commander1   -> COMMANDER
-
-Idempotent: an existing username is never modified (role, active and the
-stored hash are preserved), so re-running is always safe.
-
-Usage (from the backend directory, with the backend virtualenv active):
-
-    python seed.py
+    demo_admin     / Demo@Admin1       -> ADMIN   (bootstrap-only, seed.py)
 """
 
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
+
+from dotenv import load_dotenv
+
+# Load .env BEFORE importing code that requires AUTH_SECRET_KEY: lib.auth_service
+# reads the secret at import time (same load-bearing order as server.py).
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from lib.auth_service import hash_password
 from lib.db import db
@@ -35,6 +41,7 @@ DEMO_ACCOUNTS: list[dict[str, str]] = [
     {"username": "demo_personnel", "password": "Demo@Personnel1", "role": "PERSONNEL"},
     {"username": "demo_officer", "password": "Demo@Officer1", "role": "WELFARE_OFFICER"},
     {"username": "demo_commander", "password": "Demo@Commander1", "role": "COMMANDER"},
+    {"username": "demo_admin", "password": "Demo@Admin1", "role": "ADMIN"},
 ]
 
 

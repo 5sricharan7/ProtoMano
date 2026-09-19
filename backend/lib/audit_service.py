@@ -22,6 +22,8 @@ AuditEventType = Literal[
     "intervention_created",
     "intervention_updated",
     "intervention_closed",
+    "admin_user_created",
+    "admin_user_status_changed",
 ]
 
 

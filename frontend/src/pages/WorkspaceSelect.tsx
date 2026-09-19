@@ -25,7 +25,7 @@ export default function WorkspaceSelect() {
         <section
           className="demo-story"
           style={{
-            backgroundImage: `linear-gradient(90deg, rgba(0, 26, 23, .89), rgba(0, 26, 23, .30)), url(${HERO_BACKGROUND_URL})`,
+            backgroundImage: `linear-gradient(105deg, rgba(246,243,234,.96) 0%, rgba(255,253,248,.90) 40%, rgba(255,253,248,.62) 72%, rgba(255,253,248,.45) 100%), url(${HERO_BACKGROUND_URL})`,
           }}
         >
           <div>
