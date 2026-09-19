@@ -7,6 +7,7 @@ const HOME_PATHS: Record<UserRole, string> = {
   PERSONNEL: "/personnel",
   WELFARE_OFFICER: "/officer",
   COMMANDER: "/command",
+  ADMIN: "/admin",
 };
 
 interface RequireRoleProps {

@@ -20,6 +20,7 @@ from typing import List
 
 from routers.welfare import router as welfare_router
 from routers.auth import router as auth_router
+from routers.admin import router as admin_router
 from lib.auth_deps import get_current_user
 
 
@@ -42,6 +43,7 @@ app = FastAPI(lifespan=lifespan)
 api_router = APIRouter(prefix="/api")
 api_router.include_router(welfare_router)
 api_router.include_router(auth_router)
+api_router.include_router(admin_router)
 
 
 # Define Models

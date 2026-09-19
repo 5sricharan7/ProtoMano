@@ -1,6 +1,6 @@
 export type RiskBand = "Low" | "Moderate" | "High";
 
-export type UserRole = "PERSONNEL" | "WELFARE_OFFICER" | "COMMANDER";
+export type UserRole = "PERSONNEL" | "WELFARE_OFFICER" | "COMMANDER" | "ADMIN";
 
 export interface AuthToken {
   access_token: string;
@@ -291,4 +291,51 @@ export interface InterventionAction {
   outcome?: string | null;
   outcome_notes?: string | null;
   updated_at?: string | null;
+}
+
+// --- Admin realm (Task 5.5): account provisioning + system status ---
+
+// Provisioning never accepts ADMIN: the backend Literal forbids it at the schema.
+export type ProvisionRole = "WELFARE_OFFICER" | "COMMANDER";
+
+export interface AdminProvisionRequest {
+  username: string;
+  password: string;
+  role: ProvisionRole;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  username: string;
+  role: UserRole;
+  active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AdminAuthStatus {
+  provider: string;
+  algorithm: string;
+  token_expire_minutes: number;
+  session_boundary_clear_on_signout: boolean;
+  active_accounts: number;
+}
+
+export interface AdminDatabaseStatus {
+  status: "ok" | "unreachable";
+}
+
+export interface AdminModelStatus {
+  product_name?: string | null;
+  model_version?: string | null;
+  feature_version?: string | null;
+  feature_count?: number | null;
+  preprocessing_status?: string | null;
+  ready: boolean;
+}
+
+export interface AdminSystemStatus {
+  authentication: AdminAuthStatus;
+  database: AdminDatabaseStatus;
+  model: AdminModelStatus | null;
 }

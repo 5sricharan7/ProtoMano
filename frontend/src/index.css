@@ -1897,3 +1897,315 @@ button, input { font: inherit; }
     transition: none;
   }
 }
+
+/* CP3C-PERSONNEL-SIGNUP: public Personnel account creation */
+.signup-success {
+  align-items: flex-start;
+  background: rgba(103, 226, 189, .1);
+  border: 1px solid rgba(103, 226, 189, .34);
+  border-radius: 10px;
+  display: flex;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 18px 18px 20px;
+}
+.signup-success-icon {
+  align-items: center;
+  background: #79efce;
+  border-radius: 50%;
+  color: #00271f;
+  display: flex;
+  flex: 0 0 auto;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+.signup-success h3 {
+  color: #eef7f2;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  margin: 1px 0 6px;
+}
+.signup-success p {
+  color: #a8c4b7;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+.demo-continue.signup-login-link {
+  text-decoration: none;
+}
+.demo-continue.signup-login-link:hover {
+  background: #99f4d8;
+  text-decoration: none;
+}
+
+/* CP3C-ADMIN-LOGIN: Administrator sign-in accent (single access-only page) */
+.admin-story h1 em {
+  color: #8fd8f5;
+}
+.admin-story .demo-story-rule {
+  background: #8fd8f5;
+}
+.workspace-role-chip--admin {
+  background: rgba(125, 211, 240, .09);
+  border-color: rgba(125, 211, 240, .26);
+  color: #9fdcf7;
+}
+
+/* CP3C-ADMIN-PORTAL: minimal account-governance surface (no dashboard/charts) */
+.admin-portal {
+  background: #001b17;
+  color: #f3f8f5;
+  min-height: 100vh;
+}
+.admin-header {
+  align-items: center;
+  background: #00201b;
+  border-bottom: 1px solid rgba(102, 231, 193, .18);
+  display: flex;
+  height: 86px;
+  justify-content: space-between;
+  padding: 0 clamp(28px, 3.8vw, 68px);
+}
+.admin-header-nav {
+  align-items: center;
+  display: flex;
+  gap: 32px;
+}
+.admin-header-nav a {
+  color: #dae5e1;
+  font-size: 14px;
+  text-decoration: none;
+}
+.admin-header-nav a:hover {
+  color: #69ecc4;
+}
+.admin-header-signout {
+  align-items: center;
+  background: transparent;
+  border: 1px solid rgba(102, 231, 193, .22);
+  border-radius: 6px;
+  color: #d6e5df;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 13px;
+  gap: 8px;
+  padding: 9px 14px;
+}
+.admin-header-signout:hover {
+  border-color: rgba(102, 231, 193, .5);
+  color: #69ecc4;
+}
+.admin-main {
+  margin: 0 auto;
+  max-width: 1080px;
+  padding: clamp(40px, 6vh, 72px) clamp(24px, 4vw, 56px) 84px;
+}
+.admin-head {
+  margin-bottom: 40px;
+  max-width: 680px;
+}
+.admin-kicker {
+  color: #7cecc9;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  letter-spacing: .24em;
+}
+.admin-head h1 {
+  color: #f1f7f4;
+  font-size: clamp(40px, 5vw, 60px);
+  font-weight: 590;
+  letter-spacing: -.06em;
+  line-height: .97;
+  margin: 16px 0 22px;
+}
+.admin-head h1 em {
+  color: #8fd8f5;
+  font-family: Georgia, serif;
+  font-weight: 400;
+}
+.admin-head p {
+  color: #a8c4b7;
+  font-size: 16px;
+  line-height: 1.7;
+  margin: 0;
+}
+.admin-grid {
+  display: grid;
+  gap: 26px;
+  grid-template-columns: 1.05fr .95fr;
+}
+.admin-panel {
+  background: #0a2822;
+  border: 1px solid rgba(102, 231, 193, .14);
+  border-radius: 12px;
+  padding: 26px 26px 28px;
+}
+.admin-panel-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 15px;
+  margin-bottom: 22px;
+}
+.admin-panel-icon {
+  align-items: center;
+  background: rgba(103, 226, 189, .08);
+  border: 1px solid rgba(103, 226, 189, .2);
+  border-radius: 9px;
+  color: #7cecc9;
+  display: flex;
+  flex: 0 0 auto;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+.admin-panel h2 {
+  color: #eef7f2;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  margin: 0 0 4px;
+}
+.admin-panel-head p {
+  color: #7fa294;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 0;
+}
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.admin-field label {
+  color: #bcd0c6;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.admin-field input,
+.admin-field select {
+  background: #071d19;
+  border: 1px solid rgba(102, 231, 193, .2);
+  border-radius: 7px;
+  color: #f3f8f5;
+  font-family: inherit;
+  font-size: 15px;
+  min-height: 46px;
+  outline: none;
+  padding: 0 13px;
+  transition: border-color .15s ease;
+}
+.admin-field input:focus,
+.admin-field select:focus {
+  border-color: rgba(102, 231, 193, .55);
+}
+.admin-field select {
+  width: 100%;
+}
+.admin-create-button {
+  margin-top: 4px;
+}
+.admin-notice {
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 11px 13px;
+}
+.admin-notice--success {
+  background: rgba(103, 226, 189, .12);
+  border: 1px solid rgba(103, 226, 189, .32);
+  color: #8fe3c0;
+}
+.admin-notice--error {
+  background: rgba(241, 128, 94, .1);
+  border: 1px solid rgba(241, 128, 94, .3);
+  color: #f19a7e;
+}
+.admin-status-loading {
+  color: #7fa294;
+  font-size: 14px;
+  margin: 6px 0 0;
+}
+.admin-status-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+.admin-status-chip {
+  align-items: center;
+  background: #071d19;
+  border: 1px solid rgba(102, 231, 193, .14);
+  border-radius: 9px;
+  display: flex;
+  gap: 11px;
+  padding: 13px 14px;
+}
+.admin-status-chip > svg {
+  color: #7cecc9;
+}
+.admin-status-chip span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.admin-status-chip small {
+  color: #7fa294;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.admin-status-chip strong {
+  color: #dbe7e1;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.admin-chip-ok {
+  color: #67e2bd !important;
+}
+.admin-chip-bad {
+  color: #f19a7e !important;
+}
+.admin-status-note {
+  color: #7fa294;
+  font-size: 12px;
+  margin: 16px 0 0;
+}
+.admin-footer {
+  align-items: flex-start;
+  border-top: 1px solid rgba(102, 231, 193, .12);
+  color: #5f7d70;
+  display: flex;
+  font-size: 12.5px;
+  gap: 10px;
+  line-height: 1.6;
+  margin-top: 34px;
+  padding-top: 20px;
+}
+.admin-footer svg {
+  color: #67e2bd;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+@media (max-width: 880px) {
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-status-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-header-nav a {
+    display: none;
+  }
+}
