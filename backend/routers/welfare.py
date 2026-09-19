@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 from uuid import uuid4
@@ -50,6 +51,8 @@ from models.welfare import (
     PredictionUnavailable,
     RecordResponse,
     TrajectoryPoint,
+    UnitOverview,
+    UnitOverviewResponse,
     WelfareDecisionSupportResponse,
     WelfarePredictionResponse,
     WelfareTrajectoryResponse,
@@ -451,6 +454,82 @@ async def overview(current_user: dict = Depends(require_any_role("WELFARE_OFFICE
         assessments_today=assessments_today,
         open_interventions=open_interventions,
         high_risk_latest=high_risk_latest,
+    )
+
+
+def _minimum_group_size() -> int:
+    """Aggregate-cell suppression threshold, tunable via the environment.
+
+    Any unit whose personnel count is below this value has every count cell
+    suppressed in aggregate views (``UnitOverview.suppressed``).  Never falls
+    below 1 so an environment misconfiguration cannot silently disable the
+    suppression concept entirely.
+    """
+    try:
+        return max(1, int(os.environ.get("AGGREGATE_MIN_GROUP_SIZE", "3")))
+    except ValueError:
+        return 3
+
+
+@router.get("/overview/units", response_model=UnitOverviewResponse)
+async def overview_units(
+    current_user: dict = Depends(require_any_role("WELFARE_OFFICER", "COMMANDER")),
+) -> UnitOverviewResponse:
+    """AGGREGATE ONLY — Unit-level overview (counts per unit, never individuals).
+
+    WELFARE_OFFICER and COMMANDER.  The Commander dashboard (Phase 5) reads
+    this aggregate view: personnel and high-risk counts grouped by unit with
+    minimum-group-size suppression applied to every cell.  A unit whose
+    personnel count is below ``AGGREGATE_MIN_GROUP_SIZE`` (default 3) returns
+    suppressed (None) counts so a small unit can never be used to re-identify
+    an individual.  Global totals remain cohort-level and are reported
+    un-suppressed, matching the existing ``/overview`` semantics.
+
+    Every individual personnel / risk / wellness / workload / leave /
+    deployment / intervention endpoint stays WELFARE_OFFICER-only; this route
+    and ``/overview`` are the only welfare-data surfaces available to COMMANDER.
+    """
+    threshold = _minimum_group_size()
+    personnel_docs = await db.personnel.find().to_list(None)
+    latest_assessments = await db.risk_assessments.find({"is_latest": True}).to_list(None)
+    latest_by_personnel = {doc.get("personnel_id"): doc for doc in latest_assessments}
+
+    buckets: dict[str, dict[str, int]] = {}
+    for doc in personnel_docs:
+        unit = str(doc.get("unit") or "").strip() or "Unassigned unit"
+        bucket = buckets.setdefault(unit, {"personnel": 0, "high_risk": 0})
+        bucket["personnel"] += 1
+        latest = latest_by_personnel.get(doc.get("id"))
+        if latest is not None and latest.get("predicted_band") == "High":
+            bucket["high_risk"] += 1
+
+    units: list[UnitOverview] = []
+    suppressed_units = 0
+    for unit, bucket in sorted(
+        buckets.items(), key=lambda item: (-item[1]["personnel"], item[0].lower())
+    ):
+        if bucket["personnel"] < threshold:
+            suppressed_units += 1
+            units.append(
+                UnitOverview(unit=unit, personnel_count=None, high_risk_latest=None, suppressed=True)
+            )
+        else:
+            units.append(
+                UnitOverview(
+                    unit=unit,
+                    personnel_count=bucket["personnel"],
+                    high_risk_latest=bucket["high_risk"],
+                    suppressed=False,
+                )
+            )
+
+    return UnitOverviewResponse(
+        units=units,
+        total_personnel_count=sum(bucket["personnel"] for bucket in buckets.values()),
+        high_risk_latest_total=sum(bucket["high_risk"] for bucket in buckets.values()),
+        min_group_size=threshold,
+        suppressed_units=suppressed_units,
+        generated_at=utc_now(),
     )
 
 

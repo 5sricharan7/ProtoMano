@@ -155,6 +155,41 @@ class Overview(BaseModel):
     high_risk_latest: int
 
 
+# --- Task 5A: Commander aggregate-only unit-level overview ---
+
+
+class UnitOverview(BaseModel):
+    """One unit cell in the Commander aggregate overview.
+
+    ``personnel_count`` and ``high_risk_latest`` are None when the unit's
+    personnel count is below the minimum-group size: the cell is suppressed
+    (``suppressed=True``) so a small unit can never be used to re-identify an
+    individual.  The unit name itself stays (organizational metadata), but no
+    count is ever returned for a group smaller than the threshold.
+    """
+
+    unit: str
+    personnel_count: int | None = None
+    high_risk_latest: int | None = None
+    suppressed: bool = False
+
+
+class UnitOverviewResponse(BaseModel):
+    """AGGREGATE ONLY — Unit-level overview for WELFARE_OFFICER/COMMANDER.
+
+    Every unit cell honours the minimum-group-size suppression.  Global totals
+    are cohort-level (the full personnel cohort, not a sub-group) and are
+    returned un-suppressed, matching the existing ``Overview`` semantics.
+    """
+
+    units: list[UnitOverview]
+    total_personnel_count: int
+    high_risk_latest_total: int
+    min_group_size: int
+    suppressed_units: int
+    generated_at: datetime
+
+
 class DemoHistory(BaseModel):
     assessed_at: datetime
     band: RiskBand

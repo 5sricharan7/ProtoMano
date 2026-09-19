@@ -36,6 +36,22 @@ export interface Overview {
   high_risk_latest: number;
 }
 
+export interface UnitOverview {
+  unit: string;
+  personnel_count: number | null;
+  high_risk_latest: number | null;
+  suppressed: boolean;
+}
+
+export interface UnitOverviewResponse {
+  units: UnitOverview[];
+  total_personnel_count: number;
+  high_risk_latest_total: number;
+  min_group_size: number;
+  suppressed_units: number;
+  generated_at: string;
+}
+
 export interface Contribution {
   feature: string;
   contribution: number;
