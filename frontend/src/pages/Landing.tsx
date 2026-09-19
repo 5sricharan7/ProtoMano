@@ -63,7 +63,7 @@ export default function Landing() {
       <main>
         <section
           className="reference-hero"
-          style={{ backgroundImage: `linear-gradient(90deg, rgba(0, 24, 22, .98) 0%, rgba(0, 24, 22, .79) 33%, rgba(0, 24, 22, .15) 66%, rgba(0, 24, 22, .08) 100%), url(${HERO_BACKGROUND_URL})` }}
+          style={{ backgroundImage: `linear-gradient(105deg, rgba(246,243,234,.97) 0%, rgba(255,253,248,.92) 40%, rgba(255,253,248,.66) 72%, rgba(255,253,248,.40) 100%), url(${HERO_BACKGROUND_URL})` }}
           data-testid="landing-hero"
         >
           <div className="reference-hero-copy">

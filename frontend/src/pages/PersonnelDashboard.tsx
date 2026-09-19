@@ -513,10 +513,10 @@ function WhatChangedDetail({ profile, changePts, bandShift }: { profile: DemoPer
       {prior && latest && (
         <div className="signal-compare">
           <span>
-            Prior snapshot: <strong>{prior.band}</strong> at <strong>{formatPercent(prior.probability)}</strong>
+            Before: <strong>{prior.band}</strong> at <strong>{formatPercent(prior.probability)}</strong>
           </span>
           <span>
-            Latest snapshot: <strong>{latest.band}</strong> at <strong>{formatPercent(latest.probability)}</strong>
+            After: <strong>{latest.band}</strong> at <strong>{formatPercent(latest.probability)}</strong>
           </span>
         </div>
       )}
@@ -808,15 +808,15 @@ function AiAssessmentDetail({ profile }: { profile: DemoPersonnel }) {
       {result ? (
         <>
           <AIResultPanel result={result} />
-          <Card className="changed-card" data-testid="what-changed-card">
-            <div className="card-title-row">
-              <div>
-                <span className="eyebrow-label">What changed?</span>
-                <h2>Current vs. recent history</h2>
-                <p>Only stored feature differences are shown. No causal claim is made.</p>
+<Card className="changed-card" data-testid="what-changed-card">
+              <div className="card-title-row">
+                <div>
+                  <span className="eyebrow-label">What changed?</span>
+                  <h2>Current vs. recent history</h2>
+                  <p>Before and after values are stored feature readings — a change opens a conversation, never a diagnosis.</p>
+                </div>
+                <BarChart3 size={17} />
               </div>
-              <BarChart3 size={17} />
-            </div>
             {result.what_changed?.length ? (
               <div className="change-list">
                 {result.what_changed.map((change) => (
