@@ -1,0 +1,117 @@
+{
+  "model_version": "0.2.0-sih-final",
+  "trained_at_utc": "2026-09-06T21:49:27.357428+00:00",
+  "feature_list_in_order": [
+    "years_of_service",
+    "hardship_posting_flag",
+    "transfer_count_24mo",
+    "years_in_current_posting",
+    "weekly_duty_hours",
+    "weekly_duty_hours__roll4_mean",
+    "weekly_duty_hours__delta_wow",
+    "weekly_duty_hours__was_missing",
+    "night_shift_ratio",
+    "night_shift_ratio__roll4_mean",
+    "night_shift_ratio__delta_wow",
+    "night_shift_ratio__was_missing",
+    "overtime_hours",
+    "overtime_hours__roll4_mean",
+    "overtime_hours__delta_wow",
+    "overtime_hours__was_missing",
+    "days_since_last_rest",
+    "days_since_last_rest__roll4_mean",
+    "days_since_last_rest__delta_wow",
+    "days_since_last_rest__was_missing",
+    "days_since_last_leave",
+    "days_since_last_leave__roll4_mean",
+    "days_since_last_leave__delta_wow",
+    "days_since_last_leave__was_missing",
+    "leave_balance",
+    "leave_balance__roll4_mean",
+    "leave_balance__delta_wow",
+    "leave_balance__was_missing",
+    "wellness_score_self_report",
+    "wellness_score_self_report__roll4_mean",
+    "wellness_score_self_report__delta_wow",
+    "wellness_score_self_report__was_missing",
+    "sleep_quality_score_self_report",
+    "sleep_quality_score_self_report__roll4_mean",
+    "sleep_quality_score_self_report__delta_wow",
+    "sleep_quality_score_self_report__was_missing",
+    "resting_hr_trend_biometric",
+    "resting_hr_trend_biometric__roll4_mean",
+    "resting_hr_trend_biometric__delta_wow",
+    "resting_hr_trend_biometric__was_missing",
+    "sleep_hours_biometric",
+    "sleep_hours_biometric__roll4_mean",
+    "sleep_hours_biometric__delta_wow",
+    "sleep_hours_biometric__was_missing"
+  ],
+  "band_order": [
+    "Low",
+    "Moderate",
+    "High"
+  ],
+  "metrics": {
+    "run_timestamp_utc": "2026-09-06T21:49:27.357428+00:00",
+    "cv_macro_f1_mean": 0.6346501389662974,
+    "cv_macro_f1_std": 0.006322727400413295,
+    "test_macro_f1": 0.7317820571139553,
+    "dummy_baseline_macro_f1": 0.2303284172557233,
+    "beats_dummy_baseline": true,
+    "per_class": {
+      "Low": {
+        "precision": 0.7804929876753082,
+        "recall": 0.9277595352361707,
+        "f1": 0.8477784189267167,
+        "support": 3959
+      },
+      "Moderate": {
+        "precision": 0.7570921985815603,
+        "recall": 0.5804259175351155,
+        "f1": 0.6570915619389587,
+        "support": 2207
+      },
+      "High": {
+        "precision": 0.7631578947368421,
+        "recall": 0.6304347826086957,
+        "f1": 0.6904761904761905,
+        "support": 1334
+      }
+    },
+    "brier_scores": {
+      "Low": 0.12317667633197456,
+      "Moderate": 0.12949034714097143,
+      "High": 0.07719307036518906
+    },
+    "trajectory_backtest": {
+      "n_personnel_reaching_high": 477,
+      "n_caught_by_early_warning": 236,
+      "pct_caught": 0.495,
+      "median_lead_time_weeks": 8.0,
+      "mean_lead_time_weeks": 8.14406779661017,
+      "pct_caught_2plus_weeks_ahead": 0.468
+    },
+    "trust_engine_noise_correlation": -0.03453718157595815,
+    "n_train_rows": 31500,
+    "n_test_rows": 7500,
+    "temporal_cutoff_week": 21,
+    "feature_count": 44
+  },
+  "notes": "Synthetic training data only. Not for real deployment without revalidation on real, ethics-board-approved data.",
+  "feature_version": "1.1.0",
+  "updated_at_utc": "2026-09-06T21:50:24.592062+00:00",
+  "upgrade_modules_added": [
+    "data_categories_audit",
+    "change_engine",
+    "fusion_v2",
+    "temporal_shap",
+    "counterfactual_engine",
+    "fairness_eval",
+    "drift_monitor",
+    "feedback_store",
+    "inference_pipeline"
+  ],
+  "fairness_report_path": "reports/fairness_report.json",
+  "drift_report_path": "reports/drift_report.json"
+}
