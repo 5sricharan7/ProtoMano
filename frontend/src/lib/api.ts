@@ -2,7 +2,7 @@
 // same code works in dev (Vite proxies /api → :8001) and behind a single origin in prod.
 import { getToken } from "./auth";
 
-const BASE = "/api";
+const BASE = import.meta.env.VITE_API_BASE || "/api";
 
 // Fields are declared, not constructor parameter properties: tsconfig sets
 // erasableSyntaxOnly, which rejects `constructor(readonly status: number)`.
